@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'chore: apply app import fix patch'
+    if: "${{ github.event.head_commit.message == 'chore: apply app import fix patch' }}"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
