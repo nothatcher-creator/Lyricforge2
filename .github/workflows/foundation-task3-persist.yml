@@ -1,0 +1,148 @@
+name: Foundation Task 3 - Persist Verified Source Build
+
+on:
+  push:
+    branches: [feat/source-foundation]
+    paths:
+      - .github/workflows/foundation-task3-persist.yml
+
+permissions:
+  contents: write
+
+jobs:
+  persist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/source-foundation
+
+      - name: Install and pin build compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+          pnpm install --frozen-lockfile
+          pnpm add -D esbuild@0.28.0
+
+      - name: Persist verified Pages source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > lib/lyricforge/public-path.ts <<'EOF'
+          export const APP_BASE_PATH = "/Lyricforge2";
+
+          export function publicPath(path: string, pathname?: string): string {
+            const normalized = path.startsWith("/") ? path : `/${path}`;
+            if (normalized === APP_BASE_PATH || normalized.startsWith(`${APP_BASE_PATH}/`)) return normalized;
+            const currentPath = pathname ?? (typeof window !== "undefined" ? window.location.pathname : APP_BASE_PATH);
+            return currentPath === APP_BASE_PATH || currentPath.startsWith(`${APP_BASE_PATH}/`)
+              ? `${APP_BASE_PATH}${normalized}`
+              : normalized;
+          }
+          EOF
+
+          mkdir -p lib/lyricforge/__tests__
+          cat > lib/lyricforge/__tests__/public-path.test.ts <<'EOF'
+          import { describe, expect, it } from "vitest";
+          import { publicPath } from "../public-path";
+
+          describe("publicPath", () => {
+            it("uses the Pages prefix when the page is under /Lyricforge2", () => {
+              expect(publicPath("/workers/analysis.js", "/Lyricforge2/")).toBe("/Lyricforge2/workers/analysis.js");
+            });
+            it("uses a root public path during local development", () => {
+              expect(publicPath("/workers/analysis.js", "/")).toBe("/workers/analysis.js");
+            });
+            it("does not double-prefix a production path", () => {
+              expect(publicPath("/Lyricforge2/favicon.svg", "/Lyricforge2/editor")).toBe("/Lyricforge2/favicon.svg");
+            });
+          });
+          EOF
+
+          cat > next.config.ts <<'EOF'
+          import type { NextConfig } from "next";
+          const nextConfig: NextConfig = {
+            output: "export",
+            assetPrefix: "/Lyricforge2",
+            trailingSlash: true,
+          };
+          export default nextConfig;
+          EOF
+
+          cat > vite.config.ts <<'EOF'
+          import vinext from "vinext";
+          import { defineConfig } from "vite";
+          export default defineConfig({
+            plugins: [vinext({ prerender: { routes: "*" } })],
+          });
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page=Path('app/page.tsx'); text=page.read_text()
+          if 'export const dynamic' not in text: page.write_text('export const dynamic = "force-static";\n'+text)
+
+          p=Path('components/editor/Editor.tsx'); text=p.read_text(); needle="import {store,useEditor} from '@/lib/lyricforge/store';"
+          if "@/lib/lyricforge/public-path" not in text: text=text.replace(needle,needle+"\nimport {publicPath} from '@/lib/lyricforge/public-path';")
+          text=text.replace('src="/favicon.svg"','src={publicPath("/favicon.svg")}').replace("new Worker('/workers/analysis.js')","new Worker(publicPath('/workers/analysis.js'))")
+          p.write_text(text)
+
+          p=Path('lib/lyricforge/transcription.ts'); text=p.read_text()
+          if "./public-path" not in text: text=text.replace("import {makeClip,uid,type Clip,type Word} from './model';","import {makeClip,uid,type Clip,type Word} from './model';\nimport {publicPath} from './public-path';")
+          p.write_text(text.replace("new Worker('/workers/transcription.js',{type:'module'})","new Worker(publicPath('/workers/transcription.js'),{type:'module'})"))
+
+          p=Path('lib/lyricforge/software-exporter.ts'); text=p.read_text()
+          if "./public-path" not in text: text=text.replace("import type {ExportSettings} from './exporter';","import type {ExportSettings} from './exporter';\nimport {publicPath} from './public-path';")
+          text=text.replace("fetch('/workers/ffmpeg-manifest.json'","fetch(publicPath('/workers/ffmpeg-manifest.json')").replace("fetch('/workers/'+manifest.parts[i]","fetch(publicPath('/workers/'+manifest.parts[i])").replace("classWorkerURL:location.origin+'/workers/ffmpeg-worker.js',coreURL:location.origin+'/workers/ffmpeg-core.js'","classWorkerURL:location.origin+publicPath('/workers/ffmpeg-worker.js'),coreURL:location.origin+publicPath('/workers/ffmpeg-core.js')")
+          p.write_text(text)
+
+          p=Path('lib/lyricforge/transcription.worker.ts'); p.write_text(p.read_text().replace("env.backends.onnx.wasm!.wasmPaths='/workers/';","env.backends.onnx.wasm!.wasmPaths=self.location.pathname.startsWith('/Lyricforge2/')?'/Lyricforge2/workers/':'/workers/';"))
+          p=Path('app/layout.tsx'); p.write_text(p.read_text().replace('icon: "/favicon.svg"','icon: "/Lyricforge2/favicon.svg"').replace('shortcut: "/favicon.svg"','shortcut: "/Lyricforge2/favicon.svg"'))
+          p=Path('public/workers/transcription.js'); p.write_text(p.read_text().replace('wasmPaths="/workers/"','wasmPaths="/Lyricforge2/workers/"').replace("wasmPaths='/workers/'","wasmPaths='/Lyricforge2/workers/'"))
+          p=Path('scripts/test.mjs'); text=p.read_text(); p.write_text(text.replace("if(compile.status)process.exit(compile.status);","if(compile.error){console.error('Could not start esbuild for legacy tests:',compile.error);process.exit(1);}if(compile.status)process.exit(compile.status);"))
+          PY
+
+          cat > scripts/verify-pages-build.mjs <<'EOF'
+          import fs from "node:fs";
+          import path from "node:path";
+          const root = path.resolve("dist/client");
+          for (const relative of ["index.html", "workers/analysis.js", "workers/transcription.js"]) {
+            if (!fs.existsSync(path.join(root, relative))) throw new Error(`Missing Pages artifact: ${relative}`);
+          }
+          const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
+          if(!html.includes("LyricForge")) throw new Error("LyricForge marker missing from index.html");
+          if(html.includes("Cloudflare Local Explorer")) throw new Error("Wrong Cloudflare explorer artifact exported");
+          if(!html.includes("/Lyricforge2/_next/")) throw new Error("GitHub Pages asset prefix missing");
+          const worker=fs.readFileSync(path.join(root,"workers/transcription.js"),"utf8");
+          if(!worker.includes("/Lyricforge2/workers/")) throw new Error("Worker WASM path is not prefixed");
+          if(fs.existsSync(path.join(root,"Lyricforge2"))) throw new Error("Nested Lyricforge2 output directory remains after normalization");
+          console.log("GitHub Pages artifact validation passed.");
+          EOF
+
+      - name: Verify persisted source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm test -- --run
+          pnpm run test:legacy
+          pnpm run build
+          if [ -d dist/client/Lyricforge2/_next ]; then
+            rm -rf dist/client/_next
+            mv dist/client/Lyricforge2/_next dist/client/_next
+            rmdir dist/client/Lyricforge2
+          fi
+          touch dist/client/.nojekyll
+          node scripts/verify-pages-build.mjs
+
+      - name: Commit normal source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add package.json pnpm-lock.yaml scripts/test.mjs next.config.ts vite.config.ts app/page.tsx app/layout.tsx lib/lyricforge/public-path.ts lib/lyricforge/__tests__/public-path.test.ts components/editor/Editor.tsx lib/lyricforge/transcription.ts lib/lyricforge/software-exporter.ts lib/lyricforge/transcription.worker.ts public/workers/transcription.js scripts/verify-pages-build.mjs
+          git commit -m 'build: deploy tracked LyricForge source to Pages'
+          git push origin HEAD:feat/source-foundation
