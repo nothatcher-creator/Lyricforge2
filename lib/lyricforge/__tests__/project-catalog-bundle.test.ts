@@ -5,6 +5,7 @@ import {sha256Hex} from '../catalog-package';
 import {bundleCatalogDependencies,restoreBundledCatalogDependencies} from '../catalog-bundle';
 import {createMemoryCatalogStorage} from '../catalog-storage';
 import {createProject} from '../model';
+import {projectFile} from '../project-manager';
 
 async function effectPackage(version:string){
  const preset=strToU8(JSON.stringify({radius:28,intensity:.8}));
@@ -29,6 +30,11 @@ function projectAt(version:string){
 }
 
 describe('catalog dependency bundles',()=>{
+ it('bundles catalog-free projects without requiring browser IndexedDB',async()=>{
+  const project=createProject('Catalog-free project');
+  await expect(projectFile(project)).resolves.toBeInstanceOf(Blob);
+ });
+
  it('bundles exact package bytes plus the external integrity manifest under versioned paths',async()=>{
   const storage=createMemoryCatalogStorage();
   const record=await seed(storage,'1.0.0');
