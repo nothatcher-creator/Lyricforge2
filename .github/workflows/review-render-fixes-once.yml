@@ -1,0 +1,29 @@
+name: Review render fixes one-shot
+
+on:
+  push:
+    branches: [feat/creative-runtime-inline]
+    paths:
+      - .github/workflows/review-render-fixes-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-runtime-inline
+          fetch-depth: 0
+      - name: Apply reviewed render fixes
+        run: python scripts/review-render-fixes.py
+      - name: Commit reviewed render fixes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add lib/lyricforge/render-effects.ts lib/lyricforge/render-transitions.ts lib/lyricforge/renderer.ts
+          git diff --cached --check
+          git commit -m "fix: honor preview quality and timeline render time"
+          git push origin HEAD:feat/creative-runtime-inline
