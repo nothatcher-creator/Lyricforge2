@@ -1,0 +1,140 @@
+name: Foundation Task 5 - Project Dependency Migration
+
+on:
+  push:
+    branches: [feat/source-foundation]
+    paths:
+      - .github/workflows/foundation-task5.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/source-foundation
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+          pnpm install --frozen-lockfile
+      - name: Write failing migration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > lib/lyricforge/__tests__/project-migration.test.ts <<'EOF'
+          import { describe, expect, it } from "vitest";
+          import { migrateProjectDocument, PROJECT_SCHEMA_VERSION } from "../project-migration";
+
+          describe("migrateProjectDocument", () => {
+            it("adds dependency metadata to a legacy project without changing content", () => {
+              const legacy = { name: "Song", layers: [{ id: "lyrics-1", type: "text", text: "Hello" }] };
+              const migrated = migrateProjectDocument(legacy);
+              expect(migrated.schemaVersion).toBe(PROJECT_SCHEMA_VERSION);
+              expect(migrated.dependencies).toEqual([]);
+              expect(migrated.layers).toEqual(legacy.layers);
+            });
+
+            it("normalizes and de-duplicates valid dependencies", () => {
+              const migrated = migrateProjectDocument({ dependencies: [
+                { id: "catalog.glow", type: "effect", version: "1.0.0", sourceCatalogId: "official" },
+                { id: "catalog.glow", type: "effect", version: "1.0.0", sourceCatalogId: "official" },
+              ] });
+              expect(migrated.dependencies).toEqual([
+                { id: "catalog.glow", type: "effect", version: "1.0.0", sourceCatalogId: "official" },
+              ]);
+            });
+
+            it("drops malformed dependencies while preserving other project fields", () => {
+              const migrated = migrateProjectDocument({ title: "Keep me", dependencies: [
+                { id: "", type: "effect", version: "1.0.0" },
+                { id: "catalog.fade", type: "text-animation", version: "1.1.0" },
+              ] });
+              expect(migrated.title).toBe("Keep me");
+              expect(migrated.dependencies).toEqual([
+                { id: "catalog.fade", type: "text-animation", version: "1.1.0" },
+              ]);
+            });
+
+            it("rejects non-object documents", () => {
+              expect(() => migrateProjectDocument(null)).toThrow("Project document must be an object");
+              expect(() => migrateProjectDocument("bad")).toThrow("Project document must be an object");
+            });
+          });
+          EOF
+          set +e
+          pnpm test -- --run lib/lyricforge/__tests__/project-migration.test.ts >/tmp/task5-red.log 2>&1
+          status=$?
+          set -e
+          cat /tmp/task5-red.log
+          if [ "$status" -eq 0 ]; then
+            echo 'Expected project-migration test to fail before implementation.'
+            exit 1
+          fi
+      - name: Implement backward-compatible migration
+        shell: bash
+        run: |
+          cat > lib/lyricforge/project-migration.ts <<'EOF'
+          import { isCreativeAssetType, normalizeAssetRef, type ProjectDependency } from "./creative-assets";
+
+          export const PROJECT_SCHEMA_VERSION = 2;
+          export type MigratedProjectDocument = Record<string, unknown> & {
+            schemaVersion: number;
+            dependencies: ProjectDependency[];
+          };
+
+          function normalizeDependency(value: unknown): ProjectDependency | null {
+            if (!value || typeof value !== "object") return null;
+            const record = value as Record<string, unknown>;
+            if (typeof record.id !== "string" || typeof record.version !== "string" || !isCreativeAssetType(record.type)) return null;
+            try {
+              const ref = normalizeAssetRef({ id: record.id, type: record.type, version: record.version });
+              return typeof record.sourceCatalogId === "string" && record.sourceCatalogId.trim()
+                ? { ...ref, sourceCatalogId: record.sourceCatalogId.trim() }
+                : ref;
+            } catch {
+              return null;
+            }
+          }
+
+          export function migrateProjectDocument(input: unknown): MigratedProjectDocument {
+            if (!input || typeof input !== "object" || Array.isArray(input)) {
+              throw new Error("Project document must be an object");
+            }
+
+            const source = input as Record<string, unknown>;
+            const rawDependencies = Array.isArray(source.dependencies) ? source.dependencies : [];
+            const dependencies: ProjectDependency[] = [];
+            const seen = new Set<string>();
+
+            for (const raw of rawDependencies) {
+              const dependency = normalizeDependency(raw);
+              if (!dependency) continue;
+              const key = `${dependency.type}:${dependency.id}@${dependency.version}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              dependencies.push(dependency);
+            }
+
+            return { ...source, schemaVersion: PROJECT_SCHEMA_VERSION, dependencies };
+          }
+          EOF
+      - name: Run migration and full regression suites
+        run: |
+          pnpm test -- --run lib/lyricforge/__tests__/project-migration.test.ts
+          pnpm test -- --run
+          pnpm run test:legacy
+      - name: Commit migration foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add lib/lyricforge/project-migration.ts lib/lyricforge/__tests__/project-migration.test.ts
+          git commit -m 'feat: add project dependency migration foundation'
+          git push origin HEAD:feat/source-foundation
