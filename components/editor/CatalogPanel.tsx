@@ -4,9 +4,11 @@ import {Heart,RefreshCw,Search,X} from 'lucide-react';
 import type {CatalogAssetManifest,CatalogAssetType,InstalledAssetVersion} from '@/lib/lyricforge/catalog-types';
 import type {CatalogBrowseItem,CatalogFilter,CatalogService} from '@/lib/lyricforge/catalog-service';
 import CatalogPreview from './CatalogPreview';
+import AdvancedInstaller from './AdvancedInstaller';
 
 export interface CatalogInstallerLike{
  install(manifest:CatalogAssetManifest):Promise<InstalledAssetVersion>;
+ installBytes?(manifest:CatalogAssetManifest,bytes:Uint8Array|ArrayBuffer,options?:{makeCurrent?:boolean}):Promise<InstalledAssetVersion>;
  repair(type:CatalogAssetType,id:string,version:string):Promise<InstalledAssetVersion>;
  rollback(type:CatalogAssetType,id:string,version:string):Promise<InstalledAssetVersion>;
  remove(type:CatalogAssetType,id:string,version:string,options?:{force?:boolean}):Promise<void>;
@@ -124,5 +126,6 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
     {selected.manifest?.licenseUrl?<a href={selected.manifest.licenseUrl} target="_blank" rel="noreferrer">View license</a>:null}
    </aside>:null}
   </div>
+  {installer.installBytes?<details className="catalog-advanced"><summary>Advanced install</summary><AdvancedInstaller installer={{install:manifest=>installer.install(manifest),installBytes:(manifest,bytes,options)=>installer.installBytes!(manifest,bytes,options)}} onInstalled={async()=>{await service.refreshLocalState();}}/></details>:null}
  </section>;
 }
