@@ -69,10 +69,10 @@ describe('CreativeInspector',()=>{
       store.addClipEffect('text-a','builtin.effect.grain','1.0.0');
     });
     renderInspector('text-a','effects');
-    expect(screen.getByLabelText('Glow radius')).toBeTruthy();
-    expect(screen.getByLabelText('Glow intensity')).toBeTruthy();
+    expect(screen.getByRole('slider',{name:'Glow radius'})).toBeTruthy();
+    expect(screen.getByRole('slider',{name:'Glow intensity'})).toBeTruthy();
     expect(screen.getByRole('button',{name:'Add Glow intensity keyframe'})).toBeTruthy();
-    expect(screen.getByLabelText('Grain size')).toBeTruthy();
+    expect(screen.getByRole('slider',{name:'Grain size'})).toBeTruthy();
     expect(screen.queryByRole('button',{name:'Add Grain size keyframe'})).toBeNull();
   });
 
@@ -83,8 +83,8 @@ describe('CreativeInspector',()=>{
       params:creativeRegistry.normalizeParams(definition,{}),keyframes:{},
     }));
     renderInspector('text-a','animations');
-    expect(screen.getByLabelText('Fade duration')).toBeTruthy();
+    expect(screen.getByRole('slider',{name:'Fade duration'})).toBeTruthy();
     expect(screen.getByRole('button',{name:'Add Fade duration keyframe'})).toBeTruthy();
-    expect(screen.getByLabelText('Disable Intro role')).toHaveAttribute('data-state','checked');
+    expect(screen.getByLabelText('Disable Intro role').getAttribute('data-state')).toBe('checked');
   });
 });
