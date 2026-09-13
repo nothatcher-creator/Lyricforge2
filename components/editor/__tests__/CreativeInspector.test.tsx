@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
 import React from 'react';
 import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
-import {afterEach,beforeEach,describe,expect,it} from 'vitest';
+import {afterEach,beforeAll,beforeEach,describe,expect,it} from 'vitest';
 import {TooltipProvider} from '@/components/ui/tooltip';
 import {createProject,makeClip,makeTrack} from '@/lib/lyricforge/model';
 import {creativeRegistry} from '@/lib/lyricforge/creative-registry';
 import {store} from '@/lib/lyricforge/store';
 import CreativeInspector from '../CreativeInspector';
+
+class TestResizeObserver implements ResizeObserver{
+  observe(){}
+  unobserve(){}
+  disconnect(){}
+}
 
 function projectWithText(){
   const project=createProject('creative inspector');
@@ -23,6 +29,7 @@ function renderInspector(clipId:string|null,mode:'all'|'animations'|'effects'='a
 }
 
 describe('CreativeInspector',()=>{
+  beforeAll(()=>{globalThis.ResizeObserver=TestResizeObserver;});
   beforeEach(()=>{
     const {project}=projectWithText();
     act(()=>store.setProject(project));
