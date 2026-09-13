@@ -14,7 +14,7 @@ test('bundled project preserves asset bytes, fonts, words and keyframes', async 
   p.assets = [{ id: 'font', name: 'Font.ttf', type: 'font', mime: 'font/ttf', size: 4, fontFamily: 'Project Serif' }];
   assets.blobs.set('font', new Blob([new Uint8Array([0, 1, 2, 255])]));
   try {
-    const archive = unzipSync(new Uint8Array(await (await projectFile(p)).arrayBuffer()));
+    const archive = unzipSync(new Uint8Array(await (await projectFile(p, { allowUnknownFontLicenses: true })).arrayBuffer()));
     assert.deepEqual([...archive['assets/font']], [0, 1, 2, 255]);
     const restored = validateProject(JSON.parse(strFromU8(archive['project.json'])));
     assert.deepEqual(restored.clips, p.clips);
