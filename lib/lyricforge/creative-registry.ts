@@ -27,13 +27,49 @@ export interface CreativeDefinition{
 
 const HEX=/^#[0-9a-f]{6}$/i;
 
+function cloneParam(param:ParamDefinition):ParamDefinition{
+  return param.kind==='select'?{...param,options:[...param.options]}:{...param};
+}
+
+function cloneDefinition(definition:CreativeDefinition,allowCompatibility=true):CreativeDefinition{
+  const params:Record<string,ParamDefinition>={};
+  for(const [name,param] of Object.entries(definition.params))params[name]=cloneParam(param);
+  return {
+    id:definition.id,
+    type:definition.type,
+    version:definition.version,
+    name:definition.name,
+    targets:[...definition.targets],
+    ...(definition.roles?{roles:[...definition.roles]}:{}),
+    runtime:definition.runtime,
+    params,
+    quality:{...definition.quality},
+    ...(allowCompatibility&&definition.compatibleVersions?{compatibleVersions:[...definition.compatibleVersions]}:{}),
+    ...(definition.bypassWhenNeutral?{bypassWhenNeutral:[...definition.bypassWhenNeutral]}:{}),
+  };
+}
+
 export class CreativeRegistry{
+  private readonly builtins:readonly CreativeDefinition[];
+  private installed:readonly CreativeDefinition[]=[];
   private readonly byKey=new Map<string,CreativeDefinition[]>();
-  readonly definitions:readonly CreativeDefinition[];
+  private readonly listeners=new Set<()=>void>();
+  private revision=0;
 
   constructor(definitions:readonly CreativeDefinition[]){
-    this.definitions=[...definitions];
-    for(const def of definitions){
+    this.builtins=definitions.map(definition=>cloneDefinition(definition));
+    this.reindex();
+  }
+
+  get definitions():readonly CreativeDefinition[]{return [...this.builtins,...this.installed];}
+  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
+  getSnapshot=()=>this.revision;
+
+  private emit(){this.revision++;this.listeners.forEach(listener=>listener());}
+
+  private reindex(){
+    this.byKey.clear();
+    for(const def of [...this.builtins,...this.installed]){
       const key=`${def.type}:${def.id}`;
       const current=this.byKey.get(key)??[];
       current.push(def);
@@ -41,15 +77,48 @@ export class CreativeRegistry{
     }
   }
 
+  replaceInstalled(definitions:readonly CreativeDefinition[]){
+    const seen=new Set<string>();
+    const installed:CreativeDefinition[]=[];
+    for(const definition of definitions){
+      if(this.builtins.some(builtin=>builtin.type===definition.type&&builtin.id===definition.id)){
+        throw new Error(`Installed creative definitions cannot replace built-in asset ids: ${definition.type}:${definition.id}`);
+      }
+      if(!this.builtins.some(builtin=>builtin.type===definition.type&&builtin.runtime===definition.runtime)){
+        throw new Error(`Installed creative definition uses an untrusted runtime: ${definition.runtime}`);
+      }
+      const key=`${definition.type}:${definition.id}@${definition.version}`;
+      if(seen.has(key))throw new Error(`Duplicate installed creative definition: ${key}`);
+      seen.add(key);
+      installed.push(cloneDefinition(definition,false));
+    }
+    this.installed=installed;
+    this.reindex();
+    this.emit();
+  }
+
   all(type:CreativeDefinition['type']):readonly CreativeDefinition[]{
     return this.definitions.filter(definition=>definition.type===type);
   }
 
+  preferred(type:CreativeDefinition['type']):readonly CreativeDefinition[]{
+    const seen=new Set<string>();
+    return this.all(type).filter(definition=>{
+      if(seen.has(definition.id))return false;
+      seen.add(definition.id);
+      return true;
+    });
+  }
+
+  trustedRuntime(type:CreativeDefinition['type'],runtime:string):CreativeDefinition|null{
+    return this.builtins.find(definition=>definition.type===type&&definition.runtime===runtime)??null;
+  }
+
   resolve(type:CreativeDefinition['type'],id:string,version:string):CreativeDefinition|null{
     const defs=this.byKey.get(`${type}:${id}`)??[];
-    return defs.find(d=>d.version===version)
-      ?? defs.find(d=>d.compatibleVersions?.includes(version))
-      ?? null;
+    const exact=defs.find(definition=>definition.version===version);
+    if(exact)return exact;
+    return this.builtins.find(definition=>definition.type===type&&definition.id===id&&definition.compatibleVersions?.includes(version))??null;
   }
 
   normalizeParams(definition:CreativeDefinition,raw:Record<string,unknown>|undefined|null):Record<string,AssetParamValue>{
@@ -73,3 +142,7 @@ export class CreativeRegistry{
 }
 
 export const creativeRegistry=new CreativeRegistry(BUILTIN_CREATIVE_DEFINITIONS);
+
+export function isTrustedRuntime(type:'effect'|'transition'|'text-animation',runtimeId:string):boolean{
+  return BUILTIN_CREATIVE_DEFINITIONS.some(definition=>definition.type===type&&definition.runtime===runtimeId);
+}

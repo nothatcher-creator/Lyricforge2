@@ -2,7 +2,7 @@ name: Deploy LyricForge to GitHub Pages
 
 on:
   push:
-    branches: [main, feat/source-foundation]
+    branches: [main, feat/source-foundation, feat/creative-catalog]
   workflow_dispatch:
 
 permissions:
@@ -29,6 +29,10 @@ jobs:
         run: pnpm test -- --run
       - name: Run legacy regression tests
         run: pnpm run test:legacy
+      - name: Build official creative catalog
+        run: pnpm run catalog:build
+      - name: Validate official creative catalog
+        run: pnpm run catalog:validate
       - name: Build static LyricForge
         run: pnpm run build
       - name: Normalize GitHub Pages artifact

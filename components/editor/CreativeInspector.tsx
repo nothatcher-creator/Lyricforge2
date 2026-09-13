@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useSyncExternalStore} from 'react';
 import type {AnimationInstance,AnimationRole,AssetParamValue,CreativeKeyframe,EffectInstance,TransitionInstance} from '@/lib/lyricforge/creative-assets';
 import {animationRoleTime} from '@/lib/lyricforge/animation-runtime';
 import {audioEngine} from '@/lib/lyricforge/audio';
@@ -18,7 +18,7 @@ function paramName(key:string){return key.replace(/Ms$/,'').replace(/([a-z])([A-
 function animationOptions(role:AnimationRole,target:CreativeTarget){
   return [
     {label:'None',value:'none'},
-    ...creativeRegistry.all('text-animation')
+    ...creativeRegistry.preferred('text-animation')
       .filter(def=>def.roles?.includes(role)&&def.targets.includes(target))
       .map(def=>({label:def.name,value:def.id})),
   ];
@@ -65,7 +65,7 @@ function AnimationRoleEditor({clip,role,target}:{clip:Clip;role:AnimationRole;ta
       options={animationOptions(role,target)}
       onChange={assetId=>{
         if(assetId==='none'){update(null);return;}
-        const next=creativeRegistry.all('text-animation').find(def=>def.id===assetId&&def.roles?.includes(role)&&def.targets.includes(target));
+        const next=creativeRegistry.preferred('text-animation').find(def=>def.id===assetId&&def.roles?.includes(role)&&def.targets.includes(target));
         if(next)update(animationInstance(next,role));
       }}
     />
@@ -118,7 +118,6 @@ function EffectRow({effect,scope,clip,project,index,total}:{effect:EffectInstanc
   </div>;
 }
 
-
 function clipLabel(clip:Clip|undefined,id:string){return clip?.text?.trim()||clip?.name||clip?.id||id||'Missing clip';}
 
 function TransitionEditor({project,transitionId}:{project:Project;transitionId:string}){
@@ -129,7 +128,7 @@ function TransitionEditor({project,transitionId}:{project:Project;transitionId:s
   const pair=isValidTransitionPair(project,transition);
   const window=transitionWindow(project,transition);
   const definition=creativeRegistry.resolve('transition',transition.assetId,transition.version);
-  const definitions=creativeRegistry.all('transition').filter(def=>{
+  const definitions=creativeRegistry.preferred('transition').filter(def=>{
     if(!outgoing||!incoming)return true;
     return def.targets.includes(outgoing.kind as CreativeTarget)&&def.targets.includes(incoming.kind as CreativeTarget);
   });
@@ -157,6 +156,7 @@ function TransitionEditor({project,transitionId}:{project:Project;transitionId:s
 }
 
 export default function CreativeInspector({clipId,mode='all',transitionId=null}:{clipId:string|null;mode?:CreativeInspectorMode;transitionId?:string|null}){
+  useSyncExternalStore(creativeRegistry.subscribe,creativeRegistry.getSnapshot,creativeRegistry.getSnapshot);
   const {project}=useEditor();
   const clip=clipId?project.clips.find(item=>item.id===clipId):undefined;
   const target=clip&&(['lyrics','text','image','video','visualizer'] as string[]).includes(clip.kind)?clip.kind as CreativeTarget:null;
@@ -168,7 +168,7 @@ export default function CreativeInspector({clipId,mode='all',transitionId=null}:
   useEffect(()=>{setScope(target?'clip':'master');},[clipId,target]);
   const scope:EffectScope=target?scopeState:'master';
   const effectTarget:CreativeTarget=scope==='clip'&&target?target:'master';
-  const effectDefs=creativeRegistry.all('effect').filter(def=>def.targets.includes(effectTarget));
+  const effectDefs=creativeRegistry.preferred('effect').filter(def=>def.targets.includes(effectTarget));
   const preset=effectDefs.some(def=>def.id===presetState)?presetState:(effectDefs[0]?.id??'');
   const effects=scope==='clip'&&clip?clip.effects:project.masterEffects;
   const scopeLabel=scope==='clip'?'Clip effects':'Master effects';

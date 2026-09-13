@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {afterEach,beforeAll,beforeEach,describe,expect,it} from 'vitest';
 import {TooltipProvider} from '@/components/ui/tooltip';
 import {createProject,makeClip,makeTrack} from '@/lib/lyricforge/model';
@@ -29,12 +30,19 @@ function renderInspector(clipId:string|null,mode:'all'|'animations'|'effects'='a
 }
 
 describe('CreativeInspector',()=>{
-  beforeAll(()=>{globalThis.ResizeObserver=TestResizeObserver;});
+  beforeAll(()=>{
+    globalThis.ResizeObserver=TestResizeObserver;
+    Object.defineProperty(HTMLElement.prototype,'hasPointerCapture',{configurable:true,value:()=>false});
+    Object.defineProperty(HTMLElement.prototype,'setPointerCapture',{configurable:true,value:()=>{}});
+    Object.defineProperty(HTMLElement.prototype,'releasePointerCapture',{configurable:true,value:()=>{}});
+    Object.defineProperty(HTMLElement.prototype,'scrollIntoView',{configurable:true,value:()=>{}});
+  });
   beforeEach(()=>{
+    creativeRegistry.replaceInstalled([]);
     const {project}=projectWithText();
     act(()=>store.setProject(project));
   });
-  afterEach(()=>cleanup());
+  afterEach(()=>{creativeRegistry.replaceInstalled([]);cleanup();});
 
   it('shows canonical animation slots and clip effect creation for selected text',()=>{
     renderInspector('text-a');
@@ -86,5 +94,30 @@ describe('CreativeInspector',()=>{
     expect(screen.getByRole('slider',{name:'Fade duration'})).toBeTruthy();
     expect(screen.getByRole('button',{name:'Add Fade duration keyframe'})).toBeTruthy();
     expect(screen.getByLabelText('Disable Intro role').getAttribute('data-state')).toBe('checked');
+  });
+
+  it('updates effect choices immediately when installed trusted definitions change',async()=>{
+    const user=userEvent.setup();
+    renderInspector('text-a','effects');
+    const trusted=creativeRegistry.resolve('effect','builtin.effect.glow','1.0.0')!;
+    const installed={...trusted,id:'catalog.effect.neon-pulse',version:'1.2.0',name:'Neon Pulse'};
+    act(()=>creativeRegistry.replaceInstalled([installed]));
+    await user.click(screen.getByLabelText('Clip effect preset'));
+    expect(await screen.findByText('Neon Pulse')).toBeTruthy();
+    await user.click(screen.getByText('Neon Pulse'));
+    await user.click(screen.getByRole('button',{name:'Add clip effect'}));
+    expect(store.project.clips.find(clip=>clip.id==='text-a')?.effects.at(-1)).toMatchObject({assetId:'catalog.effect.neon-pulse',version:'1.2.0'});
+  });
+
+  it('deduplicates multiple installed versions in insertion choices while exact old versions stay resolvable',async()=>{
+    const user=userEvent.setup();
+    const trusted=creativeRegistry.resolve('effect','builtin.effect.glow','1.0.0')!;
+    const preferred={...trusted,id:'catalog.effect.neon-pulse',version:'1.2.0',name:'Neon Pulse'};
+    const older={...trusted,id:'catalog.effect.neon-pulse',version:'1.0.0',name:'Neon Pulse'};
+    act(()=>creativeRegistry.replaceInstalled([preferred,older]));
+    expect(creativeRegistry.resolve('effect',older.id,older.version)?.version).toBe('1.0.0');
+    renderInspector('text-a','effects');
+    await user.click(screen.getByLabelText('Clip effect preset'));
+    expect(screen.getAllByText('Neon Pulse')).toHaveLength(1);
   });
 });

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.effect.neon-pulse",
+  "version": "1.0.0",
+  "type": "effect",
+  "name": "Neon Pulse",
+  "description": "A vivid neon glow tuned for lyric titles and chorus hits.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["neon", "glow", "lyrics"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "effect.glow",
+  "preset": {"radius": 34, "intensity": 0.85},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-13T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

@@ -14,6 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "test": "vitest",
     "media:prepare": "node scripts/prepare-media.mjs",
+    "catalog:build": "node scripts/build-catalog.mjs",
+    "catalog:validate": "node scripts/validate-catalog.mjs",
     "typecheck": "tsc --noEmit",
     "test:legacy": "node scripts/test.mjs",
     "test:run": "vitest run"

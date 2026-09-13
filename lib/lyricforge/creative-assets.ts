@@ -38,6 +38,12 @@ export interface TransitionInstance {
   params: Record<string, AssetParamValue>;
 }
 
+export interface DependencyResolution {
+  dependency: ProjectDependency;
+  status: 'installed'|'missing';
+  installed?: unknown;
+}
+
 export function isCreativeAssetType(value: unknown): value is CreativeAssetType {
   return typeof value === "string" && (CREATIVE_ASSET_TYPES as readonly string[]).includes(value);
 }
@@ -49,4 +55,20 @@ export function normalizeAssetRef(value: AssetRef): AssetRef {
   if (!version) throw new Error("Creative asset version is required");
   if (!isCreativeAssetType(value.type)) throw new Error(`Unsupported creative asset type: ${String(value.type)}`);
   return { id, type: value.type, version };
+}
+
+export const CATALOG_FONT_FAMILY_PREFIX='LyricForge Catalog ';
+export function catalogFontFamilyName(id:string,version:string,displayFamily:string){
+  const ref=normalizeAssetRef({id,type:'font',version});
+  const friendly=displayFamily.trim();
+  if(!friendly)throw new Error('Catalog font display family is required');
+  return `${CATALOG_FONT_FAMILY_PREFIX}${friendly} [${ref.id}@${ref.version}]`;
+}
+
+const CATALOG_FONT_FAMILY=/^LyricForge Catalog .+ \[([a-z0-9][a-z0-9._-]*)@([^\]\s]+)\]$/i;
+export function parseCatalogFontFamily(value:unknown):AssetRef|null{
+  if(typeof value!=='string')return null;
+  const match=value.match(CATALOG_FONT_FAMILY);
+  if(!match)return null;
+  try{return normalizeAssetRef({id:match[1],type:'font',version:match[2]});}catch{return null;}
 }
