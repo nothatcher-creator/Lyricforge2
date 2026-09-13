@@ -73,3 +73,7 @@ export class CreativeRegistry{
 }
 
 export const creativeRegistry=new CreativeRegistry(BUILTIN_CREATIVE_DEFINITIONS);
+
+export function isTrustedRuntime(type:'effect'|'transition'|'text-animation',runtimeId:string):boolean{
+  return creativeRegistry.definitions.some(definition=>definition.type===type&&definition.runtime===runtimeId);
+}
