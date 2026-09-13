@@ -44,6 +44,38 @@ do not establish transcription accuracy for music or long-session performance.
   retained the project, and allowed rendering to restart.
 - Full-screen preview's explicit exit control returned to the editor.
 
+## Creative catalog acceptance — 2026-09-13
+
+The catalog-specific automated gate passed 73 tests across 17 focused test
+files, followed by the deterministic catalog build, catalog integrity validation,
+and TypeScript compilation.
+
+- The official catalog builder produced four validated asset types: font,
+  effect, transition, and text animation. Package generation is deterministic,
+  checks trusted runtime bindings, rejects unsafe archive paths and executable
+  payload declarations, and verifies whole-package plus per-file SHA-256 data.
+- Atomic installation, update failure, repair, rollback, removal protection,
+  favorites, exact-version storage, and offline cache behavior passed automated
+  coverage. A deliberately corrupted update left the previously selected valid
+  version untouched.
+- A clean-profile acceptance flow loaded a validated catalog, installed one
+  asset of every supported catalog type, reloaded with the network disabled,
+  and continued resolving the installed assets from local storage.
+- A project using an installed font, effect, transition, and text animation was
+  bundled with exact catalog package versions, restored into an empty storage
+  profile, and resolved back to the same trusted renderer IDs and exact asset
+  versions. Restoring a project dependency did not change the preferred version
+  used for new insertions.
+- Installed catalog creative presets reuse LyricForge's trusted built-in runtime
+  implementations and parameter schemas; downloaded catalog data does not add a
+  new executable JavaScript runtime path.
+- Catalog panel, advanced direct-manifest installer, Restore Dependencies UI,
+  installed creative picker integration, versioned catalog font loading, and
+  unknown imported-font bundle warnings have automated component/unit coverage.
+
+This catalog acceptance is automated. It does not replace hands-on testing on a
+real Android phone, tablet, or a long-running mobile browser session.
+
 ## Current limitations and remaining acceptance checks
 
 Browser download waits timed out for both bundled projects and MP4 output;
@@ -62,6 +94,8 @@ Also still required:
 
 - Native WebCodecs MP4/WebM paths on browsers that expose those codecs.
 - Tablet/Android landscape, pinch gestures and long projects on real devices.
-- Browser keyframe editing and a complete bundled-file import round trip.
+- Browser keyframe editing and a complete downloaded bundled-file import round trip.
+- Real-device interaction testing of the Catalog and Restore Dependencies sheets,
+  including offline/reconnect behavior and large asset downloads.
 - Transcription accuracy on representative sung material and harsh vocals.
 - Optional WebMCP actions: modelContext was unavailable in the test browser.
