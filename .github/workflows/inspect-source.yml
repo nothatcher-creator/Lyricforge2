@@ -58,6 +58,12 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          page = Path('source/app/page.tsx')
+          page_text = page.read_text()
+          if 'export const dynamic' not in page_text:
+              page_text = 'export const dynamic = "force-static";\n' + page_text
+              page.write_text(page_text)
+
           roots = [Path('source/app'), Path('source/components'), Path('source/lib')]
           for root in roots:
               for path in root.rglob('*'):
