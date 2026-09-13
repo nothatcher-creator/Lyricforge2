@@ -30,7 +30,13 @@ function renderInspector(clipId:string|null,mode:'all'|'animations'|'effects'='a
 }
 
 describe('CreativeInspector',()=>{
-  beforeAll(()=>{globalThis.ResizeObserver=TestResizeObserver;});
+  beforeAll(()=>{
+    globalThis.ResizeObserver=TestResizeObserver;
+    Object.defineProperty(HTMLElement.prototype,'hasPointerCapture',{configurable:true,value:()=>false});
+    Object.defineProperty(HTMLElement.prototype,'setPointerCapture',{configurable:true,value:()=>{}});
+    Object.defineProperty(HTMLElement.prototype,'releasePointerCapture',{configurable:true,value:()=>{}});
+    Object.defineProperty(HTMLElement.prototype,'scrollIntoView',{configurable:true,value:()=>{}});
+  });
   beforeEach(()=>{
     creativeRegistry.replaceInstalled([]);
     const {project}=projectWithText();
