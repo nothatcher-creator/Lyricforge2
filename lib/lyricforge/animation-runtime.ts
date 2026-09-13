@@ -43,6 +43,10 @@ function roleWindow(clip:Clip,role:AnimationRole,timeMs:number,params:Record<str
   return {duration:Math.max(1,n(params,'periodMs',1200)),roleTime:Math.max(0,timeMs-clip.start),visibility:1};
 }
 
+export function animationRoleTime(clip:Clip,role:AnimationRole,timeMs:number,params:Record<string,AssetParamValue>){
+  return Math.round(roleWindow(clip,role,timeMs,params).roleTime);
+}
+
 function evaluatedParams(def:CreativeDefinition,instance:AnimationInstance,roleTime:number){
   const params=creativeRegistry.normalizeParams(def,instance.params);
   const out={...params};
