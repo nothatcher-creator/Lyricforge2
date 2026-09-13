@@ -3,54 +3,22 @@ name: Apply Catalog Workspace Integration
 on:
   push:
     branches: [feat/creative-catalog]
+    paths:
+      - scripts/apply-catalog-workspace.mjs
+      - .github/workflows/catalog-ui-integrate.yml
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'ci: apply catalog workspace integration'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           ref: feat/creative-catalog
       - name: Patch editor workspace and catalog styles
-        shell: python
-        run: |
-          from pathlib import Path
-
-          editor=Path('components/editor/Editor.tsx')
-          text=editor.read_text()
-          replacements=[
-            ("Clock3,X,AudioLines} from 'lucide-react';","Clock3,X,AudioLines,Store} from 'lucide-react';"),
-            ("import {publicPath} from '@/lib/lyricforge/public-path';","import {publicPath} from '@/lib/lyricforge/public-path';\nimport {getBrowserCatalogClient} from '@/lib/lyricforge/catalog-client';"),
-            ("import {DownloadShelf} from './DownloadShelf';","import {DownloadShelf} from './DownloadShelf';\nimport CatalogPanel from './CatalogPanel';"),
-            ("{id:'effects',label:'Effects',Icon:Sparkles},{id:'elements',label:'Elements',Icon:Shapes}","{id:'effects',label:'Effects',Icon:Sparkles},{id:'catalog',label:'Catalog',Icon:Store},{id:'elements',label:'Elements',Icon:Shapes}"),
-            ("function Workspace(){const {project,selected}=useEditor();const [ready,setReady]=useState(false);","function Workspace(){const {project,selected}=useEditor();const [{service:catalogService,installer:catalogInstaller}]=useState(()=>getBrowserCatalogClient());const [ready,setReady]=useState(false);"),
-            ("tab==='effects'?<EffectsPanel/>:<ElementsPanel/>","tab==='effects'?<EffectsPanel/>:tab==='catalog'?<CatalogPanel service={catalogService} installer={catalogInstaller} mobile={workspaceMode==='phone-portrait'} onClose={()=>setPanel('library',false)}/>:<ElementsPanel/>")
-          ]
-          for old,new in replacements:
-            count=text.count(old)
-            if count!=1:
-              raise SystemExit(f'Expected one Editor match for {old!r}, found {count}')
-            text=text.replace(old,new,1)
-          editor.write_text(text)
-
-          css=Path('app/globals.css')
-          styles=css.read_text()
-          marker='/* creative-catalog-ui */'
-          if marker in styles:
-            raise SystemExit('Catalog styles already present')
-          styles += r'''
-
-/* creative-catalog-ui */
-.catalog-panel{height:100%;min-height:0;display:flex;flex-direction:column;background:#222328;color:#e8e8ed;overflow:hidden}.catalog-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 16px 10px}.catalog-header>div:first-child{display:grid;gap:2px;min-width:0}.catalog-header strong{font-size:16px}.catalog-header span{font-size:11px;color:#92949f}.catalog-header-actions{display:flex;gap:4px}.catalog-icon-button,.catalog-favorite,.catalog-detail-close{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:7px;background:transparent;color:#a8aab5}.catalog-icon-button:hover,.catalog-favorite:hover,.catalog-detail-close:hover{background:#303139;color:#fff}.catalog-favorite.active{color:#f2b66d}.catalog-tabs{display:flex;gap:3px;overflow-x:auto;padding:0 12px 10px;scrollbar-width:none}.catalog-tabs::-webkit-scrollbar{display:none}.catalog-tabs button,.catalog-filters button{border:1px solid #383a42;background:#28292f;color:#aeb0bb;border-radius:7px;white-space:nowrap}.catalog-tabs button{min-height:36px;padding:7px 10px;font-size:11px}.catalog-tabs button.active,.catalog-tabs button[aria-selected=true],.catalog-filters button.active{background:#3b3024;border-color:#8c6841;color:#f2bf80}.catalog-search{margin:0 14px 10px;height:38px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid #3a3b43;border-radius:8px;background:#292a30;color:#8f919d}.catalog-search:focus-within{border-color:#9f7953}.catalog-search input{width:100%;border:0;background:transparent}.catalog-filters{display:flex;gap:5px;overflow-x:auto;padding:0 14px 12px;scrollbar-width:none}.catalog-filters::-webkit-scrollbar{display:none}.catalog-filters button{min-height:32px;padding:5px 9px;font-size:11px}.catalog-notice,.catalog-error{margin:0 14px 10px;padding:8px 10px;border-radius:7px;font-size:11px;line-height:1.4}.catalog-notice{border:1px solid #665b3d;background:#332f23;color:#d8c99b}.catalog-error{border:1px solid #754943;background:#382624;color:#efb2aa}.catalog-content{position:relative;display:flex;flex:1;min-height:0;overflow:hidden}.catalog-grid{flex:1;min-width:0;overflow-y:auto;padding:0 14px 18px;display:grid;align-content:start;gap:10px}.catalog-card{overflow:hidden;border:1px solid #393a42;border-radius:10px;background:#27282e}.catalog-preview{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#17181b}.catalog-preview-placeholder{display:grid;place-items:center;background:linear-gradient(135deg,#30291f,#20232c);color:#e6b777;font-size:28px;font-weight:750;letter-spacing:2px}.catalog-card-body{display:grid;gap:8px;padding:10px}.catalog-card-title{display:flex;justify-content:space-between;gap:8px;align-items:start}.catalog-card-title>div{display:grid;gap:2px;min-width:0}.catalog-card-title strong{font-size:13px}.catalog-card-title span{font-size:10px;color:#9698a4}.catalog-card p,.catalog-detail p{font-size:11px;line-height:1.45;color:#aaaeba}.catalog-meta{display:flex;flex-wrap:wrap;gap:5px}.catalog-meta span{padding:3px 5px;border-radius:4px;background:#303139;color:#aeb0bb;font-size:9px}.catalog-card-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:7px}.catalog-card-actions button{min-height:36px;border-radius:7px;padding:7px 8px}.catalog-secondary{border:1px solid #42434b;background:#2d2e34;color:#c4c5ce}.catalog-primary{border:1px solid #d69e5b;background:#eab16b;color:#231b12;font-weight:650}.catalog-primary:not(:disabled):hover{background:#f5c181}.catalog-empty{padding:24px 10px;text-align:center;color:#8f919b;font-size:12px}.catalog-detail{position:absolute;inset:0;z-index:4;overflow-y:auto;padding:14px;background:#23242a}.catalog-detail-close{position:absolute;right:8px;top:8px;z-index:2;background:#1b1c20cc}.catalog-detail .catalog-preview{border-radius:8px;margin-bottom:12px}.catalog-detail h3{font-size:17px;margin-bottom:6px}.catalog-detail h4{margin-top:14px;margin-bottom:5px;font-size:11px;color:#d6b17e;text-transform:uppercase;letter-spacing:.8px}.catalog-detail dl{display:grid;gap:0;margin:14px 0}.catalog-detail dl>div{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid #35363d;font-size:11px}.catalog-detail dt{color:#8f919c}.catalog-detail dd{margin:0;overflow-wrap:anywhere}.catalog-detail>a{display:block;margin-top:10px;font-size:11px}.catalog-param-list{display:flex;flex-wrap:wrap;gap:5px}.catalog-param-list span{padding:4px 6px;border-radius:5px;background:#2e3036;color:#b9bbc4;font-size:10px}
-@media (min-width:1200px){.catalog-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}}
-@media (max-width:760px) and (orientation:portrait){.mode-phone-portrait .library-panel:has(.catalog-sheet){left:0;right:0;top:0;bottom:58px;height:auto;max-height:none;border-radius:0;border-left:0;border-right:0;border-top:0;z-index:58}.mode-phone-portrait .catalog-sheet{height:100%;padding-bottom:env(safe-area-inset-bottom)}.mode-phone-portrait .catalog-header{min-height:58px;padding:10px 12px 8px}.mode-phone-portrait .catalog-icon-button,.mode-phone-portrait .catalog-favorite,.mode-phone-portrait .catalog-detail-close{min-width:44px;width:44px;min-height:44px;height:44px}.mode-phone-portrait .catalog-tabs button{min-height:44px;padding:8px 12px}.mode-phone-portrait .catalog-filters button{min-height:40px;padding:7px 11px}.mode-phone-portrait .catalog-search{height:44px}.mode-phone-portrait .catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 10px 16px}.mode-phone-portrait .catalog-card-body{padding:8px}.mode-phone-portrait .catalog-card-actions{grid-template-columns:1fr}.mode-phone-portrait .catalog-card-actions button{min-height:44px}.mode-phone-portrait .catalog-detail{padding:12px 12px calc(20px + env(safe-area-inset-bottom))}.mode-phone-portrait .catalog-detail-close{right:10px;top:10px}}
-@media (max-width:430px) and (orientation:portrait){.mode-phone-portrait .catalog-grid{grid-template-columns:1fr}}
-'''
-          css.write_text(styles)
+        run: node scripts/apply-catalog-workspace.mjs
       - name: Commit integration
         run: |
           git config user.name "github-actions[bot]"
