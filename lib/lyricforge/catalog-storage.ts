@@ -96,6 +96,14 @@ function requestResult<T>(request:IDBRequest<T>):Promise<T>{
  return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error??new Error('IndexedDB request failed'));});
 }
 
+export function waitForIndexedDbTransaction(transaction:IDBTransaction):Promise<void>{
+ return new Promise((resolve,reject)=>{
+  transaction.oncomplete=()=>resolve();
+  transaction.onerror=()=>reject(transaction.error??new Error('IndexedDB transaction failed'));
+  transaction.onabort=()=>reject(transaction.error??new Error('IndexedDB transaction aborted'));
+ });
+}
+
 class IndexedDbBackend implements CatalogStorageBackend{
  private dbPromise?:Promise<IDBDatabase>;
  private db(){
@@ -108,8 +116,8 @@ class IndexedDbBackend implements CatalogStorageBackend{
   return this.dbPromise;
  }
  async get<T>(store:StoreName,key:string){const db=await this.db();return requestResult<T|undefined>(db.transaction(store,'readonly').objectStore(store).get(key));}
- async put<T>(store:StoreName,key:string,value:T){const db=await this.db();await requestResult(db.transaction(store,'readwrite').objectStore(store).put(value,key));}
- async delete(store:StoreName,key:string){const db=await this.db();await requestResult(db.transaction(store,'readwrite').objectStore(store).delete(key));}
+ async put<T>(store:StoreName,key:string,value:T){const db=await this.db();const transaction=db.transaction(store,'readwrite');transaction.objectStore(store).put(value,key);await waitForIndexedDbTransaction(transaction);}
+ async delete(store:StoreName,key:string){const db=await this.db();const transaction=db.transaction(store,'readwrite');transaction.objectStore(store).delete(key);await waitForIndexedDbTransaction(transaction);}
  async getAll<T>(store:StoreName){const db=await this.db();return requestResult<T[]>(db.transaction(store,'readonly').objectStore(store).getAll());}
 }
 
