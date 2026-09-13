@@ -1,11 +1,12 @@
 'use client';
 import {makeClip,uid,type Clip,type Word} from './model';
+import {publicPath} from './public-path';
 export interface TranscriptionUpdate {status:string;progress:number;words?:Word[];}
 export interface TranscriptionProvider { id:string;label:string;local:boolean;transcribe(audio:Float32Array,onProgress:(u:TranscriptionUpdate)=>void,signal:AbortSignal):Promise<Word[]>; }
 export class LocalWhisper implements TranscriptionProvider {
  id='local-whisper';label='Whisper · on this device';local=true;
  constructor(public model='Xenova/whisper-tiny.en'){}
- transcribe(audio:Float32Array,onProgress:(u:TranscriptionUpdate)=>void,signal:AbortSignal){return new Promise<Word[]>((resolve,reject)=>{if(signal.aborted){reject(new DOMException('Transcription cancelled','AbortError'));return;}const worker=new Worker('/workers/transcription.js',{type:'module'});const abort=()=>{worker.terminate();reject(new DOMException('Transcription cancelled','AbortError'));};signal.addEventListener('abort',abort,{once:true});worker.onerror=e=>{worker.terminate();signal.removeEventListener('abort',abort);reject(new Error(e.message||'The local model could not start.'));};worker.onmessage=({data})=>{if(data.type==='done'||data.type==='error'){worker.terminate();signal.removeEventListener('abort',abort);data.type==='done'?resolve(data.words):reject(new Error(data.error));}else onProgress(data);};worker.postMessage({audio,model:this.model},[audio.buffer]);});}
+ transcribe(audio:Float32Array,onProgress:(u:TranscriptionUpdate)=>void,signal:AbortSignal){return new Promise<Word[]>((resolve,reject)=>{if(signal.aborted){reject(new DOMException('Transcription cancelled','AbortError'));return;}const worker=new Worker(publicPath('/workers/transcription.js'),{type:'module'});const abort=()=>{worker.terminate();reject(new DOMException('Transcription cancelled','AbortError'));};signal.addEventListener('abort',abort,{once:true});worker.onerror=e=>{worker.terminate();signal.removeEventListener('abort',abort);reject(new Error(e.message||'The local model could not start.'));};worker.onmessage=({data})=>{if(data.type==='done'||data.type==='error'){worker.terminate();signal.removeEventListener('abort',abort);data.type==='done'?resolve(data.words):reject(new Error(data.error));}else onProgress(data);};worker.postMessage({audio,model:this.model},[audio.buffer]);});}
 }
 export class HttpTranscription implements TranscriptionProvider {
  id='http';label='Custom transcription endpoint';local=false;

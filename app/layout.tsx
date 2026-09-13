@@ -5,8 +5,8 @@ export const metadata: Metadata = {
   title: "LyricForge — Lyric Video Studio",
   description: "Create lyric videos with precise timing, expressive typography, local transcription, and complete manual control.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/Lyricforge2/favicon.svg",
+    shortcut: "/Lyricforge2/favicon.svg",
   },
 };
 
