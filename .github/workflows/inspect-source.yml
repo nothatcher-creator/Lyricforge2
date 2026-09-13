@@ -1,0 +1,44 @@
+name: Inspect LyricForge source
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf source
+          mkdir source
+          unzip -q LyricForge-v2-source.zip -d source
+          shopt -s dotglob nullglob
+          entries=(source/*)
+          if [ ${#entries[@]} -eq 1 ] && [ -d "${entries[0]}" ]; then
+            mv "${entries[0]}"/* source/ 2>/dev/null || true
+            rmdir "${entries[0]}" 2>/dev/null || true
+          fi
+      - name: Show relevant config
+        shell: bash
+        run: |
+          echo '=== package.json ==='
+          cat source/package.json
+          echo '\n=== next.config.ts ==='
+          cat source/next.config.ts
+          echo '\n=== vite.config.ts ==='
+          cat source/vite.config.ts
+          echo '\n=== app/page.tsx (first 220 lines) ==='
+          sed -n '1,220p' source/app/page.tsx
+      - name: Upload extracted source
+        uses: actions/upload-artifact@v4
+        with:
+          name: lyricforge-extracted-source
+          path: source
+          retention-days: 1
