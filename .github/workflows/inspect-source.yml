@@ -31,6 +31,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # This helper is for the original server-hosted ChatGPT runtime and is
+          # not imported by the editor. Its next/headers usage makes Vinext mark
+          # the otherwise browser-only app dynamic, so omit it for static Pages.
+          rm -f source/app/chatgpt-auth.ts
+
           cat > source/next.config.ts <<'EOF'
           import type { NextConfig } from "next";
 
@@ -44,8 +50,6 @@ jobs:
           export default nextConfig;
           EOF
 
-          # The source archive includes Cloudflare/OpenAI hosting plugins for its
-          # original runtime. GitHub Pages is static, so use only vinext here.
           cat > source/vite.config.ts <<'EOF'
           import vinext from "vinext";
           import { defineConfig } from "vite";
@@ -70,6 +74,11 @@ jobs:
                   text = text.replace('"/workers/', '"/Lyricforge2/workers/')
                   path.write_text(text)
           PY
+
+          if grep -RInE 'next/headers|headers\(|cookies\(|redirect\(' source/app source/components source/lib --include='*.ts' --include='*.tsx'; then
+            echo 'ERROR: server-only dynamic APIs remain in static build source.'
+            exit 1
+          fi
 
       - name: Install dependencies
         working-directory: source
