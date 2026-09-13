@@ -1,0 +1,61 @@
+name: Apply catalog review fix
+
+on:
+  push:
+    branches: [feat/creative-catalog]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: "${{ github.event.head_commit.message == 'chore: apply catalog review fix' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-catalog
+          fetch-depth: 0
+      - name: Patch exact dependency restore lookup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          service=Path('lib/lyricforge/catalog-service.ts')
+          text=service.read_text()
+          old=""" findExact(type:CatalogAssetType,id:string,version:string){\n  return this.snapshot.index?.items.find(item=>item.type===type&&item.id===id&&item.version===version);\n }\n\n getUpdateState"""
+          new=""" findExact(type:CatalogAssetType,id:string,version:string){\n  return this.snapshot.index?.items.find(item=>item.type===type&&item.id===id&&item.version===version);\n }\n\n async ensureExact(type:CatalogAssetType,id:string,version:string){\n  await this.load();\n  return this.findExact(type,id,version);\n }\n\n getUpdateState"""
+          if old not in text:
+            raise SystemExit('missing CatalogService patch target')
+          service.write_text(text.replace(old,new,1))
+
+          editor=Path('components/editor/Editor.tsx')
+          text=editor.read_text()
+          old="const restoreDependency=useCallback(async(dependency:ProjectDependency)=>{const manifest=catalogService.findExact(dependency.type,dependency.id,dependency.version);"
+          new="const restoreDependency=useCallback(async(dependency:ProjectDependency)=>{const manifest=await catalogService.ensureExact(dependency.type,dependency.id,dependency.version);"
+          if old not in text:
+            raise SystemExit('missing single restore patch target')
+          text=text.replace(old,new,1)
+          old="const restoreAllDependencies=useCallback(async(dependencies:ProjectDependency[])=>{for(const dependency of dependencies){const manifest=catalogService.findExact(dependency.type,dependency.id,dependency.version);"
+          new="const restoreAllDependencies=useCallback(async(dependencies:ProjectDependency[])=>{await catalogService.load();for(const dependency of dependencies){const manifest=catalogService.findExact(dependency.type,dependency.id,dependency.version);"
+          if old not in text:
+            raise SystemExit('missing restore-all patch target')
+          editor.write_text(text.replace(old,new,1))
+          PY
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify review fix
+        run: |
+          pnpm exec vitest run lib/lyricforge/__tests__/catalog-service.test.ts components/editor/__tests__/RestoreDependenciesPanel.test.tsx
+          pnpm run typecheck
+      - name: Commit review fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/lyricforge/catalog-service.ts components/editor/Editor.tsx
+          git commit -m "fix: load catalog before dependency restore"
+          git push origin HEAD:feat/creative-catalog
