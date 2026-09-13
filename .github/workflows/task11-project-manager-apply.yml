@@ -1,0 +1,42 @@
+name: Apply Task 11 Project Dependency Guards
+
+on:
+  push:
+    branches: [feat/creative-catalog]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: "${{ github.event.head_commit.message == 'chore: apply task11 project dependency guards' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-catalog
+          fetch-depth: 0
+      - name: Patch project manager
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('lib/lyricforge/project-manager.ts')
+          text=path.read_text()
+          replacements=[
+            ("import {collectProjectCatalogDependencies} from './catalog-dependencies';", "import {collectProjectCatalogDependencies,resolveProjectDependencies} from './catalog-dependencies';"),
+            ("export function getLastCatalogRestoreErrors(){return [...lastCatalogRestoreErrors];}", "export function getLastCatalogRestoreErrors(){return [...lastCatalogRestoreErrors];}\nexport interface ProjectBundleOptions{allowUnknownFontLicenses?:boolean;}\nexport class UnknownFontLicenseBundleError extends Error{\n readonly fonts:string[];\n constructor(fonts:string[]){super(`Bundling these user-imported fonts may redistribute files with unknown license rights: ${fonts.join(', ')}`);this.name='UnknownFontLicenseBundleError';this.fonts=[...fonts];}\n}\nexport function assertProjectFontBundleLicenses(p:Project,options:ProjectBundleOptions={}){const fonts=p.assets.filter(asset=>asset.type==='font').map(asset=>asset.name);if(fonts.length&&!options.allowUnknownFontLicenses)throw new UnknownFontLicenseBundleError(fonts);}\nexport async function resolveCurrentProjectDependencies(p:Project){return resolveProjectDependencies(p,await getBrowserCatalogStorage().listVersions());}"),
+            ("export async function projectFile(p:Project){const directDependencies=collectProjectCatalogDependencies(p,[]);", "export async function projectFile(p:Project,options:ProjectBundleOptions={}){assertProjectFontBundleLicenses(p,options);const directDependencies=collectProjectCatalogDependencies(p,[]);")
+          ]
+          for old,new in replacements:
+            if old not in text:
+              raise SystemExit(f'missing project-manager patch target: {old[:100]}')
+            text=text.replace(old,new,1)
+          path.write_text(text)
+          PY
+      - name: Commit project dependency guards
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/lyricforge/project-manager.ts
+          git commit -m "feat: guard project dependency restoration and font bundling"
+          git push origin HEAD:feat/creative-catalog
