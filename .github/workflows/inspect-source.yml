@@ -31,10 +31,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          # This helper is for the original server-hosted ChatGPT runtime and is
-          # not imported by the editor. Its next/headers usage makes Vinext mark
-          # the otherwise browser-only app dynamic, so omit it for static Pages.
           rm -f source/app/chatgpt-auth.ts
 
           cat > source/next.config.ts <<'EOF'
@@ -55,7 +51,7 @@ jobs:
           import { defineConfig } from "vite";
 
           export default defineConfig({
-            plugins: [vinext()],
+            plugins: [vinext({ prerender: { routes: "*" } })],
           });
           EOF
 
