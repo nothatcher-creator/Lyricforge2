@@ -8,3 +8,7 @@ export function pickTextBound(bounds:PreviewBound[],clips:Pick<Clip,'id'|'kind'>
   const index=hits.findIndex(b=>b.id===previousId);
   return index<0?hits[0]:hits[(index+1)%hits.length];
 }
+
+export function shouldStartInlineEdit(previousId:string|undefined,previousAt:number,currentId:string,now:number,threshold=360):boolean{
+  return previousId===currentId&&now>=previousAt&&now-previousAt<=threshold;
+}
