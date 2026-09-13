@@ -1,0 +1,50 @@
+name: Apply Media Import Hotfix Patch
+
+on:
+  push:
+    branches: [fix/media-import-preserve-layers]
+    paths: [.github/workflows/apply-media-import-hotfix.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Patch editor audio import flow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path=Path('components/editor/Editor.tsx')
+          text=path.read_text()
+          import_anchor="import {BRAND,uid,makeClip,makeTrack,lyricClips,type Project,type Asset,clamp} from '@/lib/lyricforge/model';\n"
+          import_line="import {replacePrimaryAudioProject} from '@/lib/lyricforge/media-import';\n"
+          if import_line not in text:
+              if import_anchor not in text:
+                  raise SystemExit('model import anchor not found')
+              text=text.replace(import_anchor,import_anchor+import_line,1)
+
+          pattern=re.compile(r"const asset=await assets\.import\(file\);const wasDemo=.*?toast\(`\$\{asset\.type==='video'\?'Video':'Image'\} added as a background layer`\);\}\}",re.S)
+          replacement="""const asset=await assets.import(file);if(asset.type==='audio'){const next=replacePrimaryAudioProject(store.project,asset);store.update(()=>next);const c=next.clips.find(c=>c.kind==='audio'&&c.assetId===asset.id)!;store.select([c.id]);audioEngine.setProject(next);audioEngine.seek(0);analyze(asset);setTab('lyrics');setLeft(true);toast('Song imported. Press Play to preview it, then add lyrics or start Auto Detect.');}else{store.update(p=>({...p,assets:[...p.assets.filter(existing=>existing.id!==asset.id),asset]}));if(asset.type==='font'){setRight(true);toast(`${file.name} is ready in Project Fonts`);}else{addMedia(asset);setTab('media');setRight(true);toast(`${asset.type==='video'?'Video':'Image'} added as a background layer`);}}"""
+          text,count=pattern.subn(replacement,text,count=1)
+          if count!=1:
+              raise SystemExit(f'expected exactly one audio import block, matched {count}')
+          path.write_text(text)
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add components/editor/Editor.tsx
+          git diff --cached --check
+          git commit -m "fix: preserve editor layers on media import"
+          git push origin HEAD:fix/media-import-preserve-layers
