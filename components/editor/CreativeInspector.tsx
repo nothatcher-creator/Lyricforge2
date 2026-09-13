@@ -1,14 +1,15 @@
 'use client';
 import {useEffect,useState} from 'react';
-import type {AnimationInstance,AnimationRole,AssetParamValue,CreativeKeyframe,EffectInstance} from '@/lib/lyricforge/creative-assets';
+import type {AnimationInstance,AnimationRole,AssetParamValue,CreativeKeyframe,EffectInstance,TransitionInstance} from '@/lib/lyricforge/creative-assets';
 import {animationRoleTime} from '@/lib/lyricforge/animation-runtime';
 import {audioEngine} from '@/lib/lyricforge/audio';
 import {creativeRegistry,type CreativeDefinition,type CreativeTarget,type ParamDefinition} from '@/lib/lyricforge/creative-registry';
 import {clamp,type Clip,type Project,uid} from '@/lib/lyricforge/model';
 import {store,useEditor} from '@/lib/lyricforge/store';
-import {Choice,ColorField,Range,Section,Toggle} from './Controls';
+import {isValidTransitionPair,transitionWindow} from '@/lib/lyricforge/transition-runtime';
+import {Choice,ColorField,NumberField,Range,Section,Toggle} from './Controls';
 
-export type CreativeInspectorMode='all'|'animations'|'effects';
+export type CreativeInspectorMode='all'|'animations'|'effects'|'transition';
 type EffectScope='clip'|'master';
 
 function title(value:string){return value[0].toUpperCase()+value.slice(1);}
@@ -117,7 +118,45 @@ function EffectRow({effect,scope,clip,project,index,total}:{effect:EffectInstanc
   </div>;
 }
 
-export default function CreativeInspector({clipId,mode='all'}:{clipId:string|null;mode?:CreativeInspectorMode}){
+
+function clipLabel(clip:Clip|undefined,id:string){return clip?.text?.trim()||clip?.name||clip?.id||id||'Missing clip';}
+
+function TransitionEditor({project,transitionId}:{project:Project;transitionId:string}){
+  const transition=project.transitions.find(item=>item.id===transitionId);
+  if(!transition)return <p className="hint" role="alert">This transition no longer exists.</p>;
+  const outgoing=project.clips.find(item=>item.id===transition.outgoingItemId);
+  const incoming=project.clips.find(item=>item.id===transition.incomingItemId);
+  const pair=isValidTransitionPair(project,transition);
+  const window=transitionWindow(project,transition);
+  const definition=creativeRegistry.resolve('transition',transition.assetId,transition.version);
+  const definitions=creativeRegistry.all('transition').filter(def=>{
+    if(!outgoing||!incoming)return true;
+    return def.targets.includes(outgoing.kind as CreativeTarget)&&def.targets.includes(incoming.kind as CreativeTarget);
+  });
+  const presetOptions=definitions.map(def=>({label:def.name,value:def.id}));
+  if(definition&&!presetOptions.some(option=>option.value===definition.id))presetOptions.unshift({label:definition.name,value:definition.id});
+  const effective=window?`${Math.round(window.effectiveDurationMs)} ms`:'Unavailable';
+  return <div className="transition-inspector">
+    <div className="transition-pair">{clipLabel(outgoing,transition.outgoingItemId)} → {clipLabel(incoming,transition.incomingItemId)}</div>
+    {!pair.valid&&<p className="transition-warning" role="alert">{pair.diagnostic?.message??'This transition is not valid at its current cut.'}</p>}
+    <Section title="Transition" open>
+      <Choice label="Transition preset" value={transition.assetId} options={presetOptions} onChange={assetId=>{
+        const next=definitions.find(def=>def.id===assetId);if(!next)return;
+        store.patchTransition(transition.id,{assetId:next.id,version:next.version,params:creativeRegistry.normalizeParams(next,{})});
+      }}/>
+      <NumberField label="Requested duration" value={transition.durationMs} min={50} step={10} suffix="ms" onChange={durationMs=>store.patchTransition(transition.id,{durationMs:Math.max(50,Math.round(durationMs))})}/>
+      <Choice label="Transition easing" value={transition.easing} options={['linear','ease-in','ease-out','ease-in-out']} onChange={easing=>store.patchTransition(transition.id,{easing:easing as TransitionInstance['easing']})}/>
+      <div className="transition-meta"><span>Effective duration</span><strong>{effective}</strong></div>
+    </Section>
+    {definition&&Object.keys(definition.params).length>0&&<Section title={`${definition.name} parameters`} open><div className="creative-param-list">{Object.entries(definition.params).map(([key,param])=>{
+      const value=transition.params[key]??param.default;
+      return <ParamControl key={key} label={`${definition.name} ${paramName(key)}`} definition={param} value={value} onChange={next=>store.patchTransition(transition.id,{params:{...transition.params,[key]:next}})}/>;
+    })}</div></Section>}
+    <button type="button" className="soft-button full transition-remove" aria-label="Remove transition" onClick={()=>store.removeTransition(transition.id)}>Remove transition</button>
+  </div>;
+}
+
+export default function CreativeInspector({clipId,mode='all',transitionId=null}:{clipId:string|null;mode?:CreativeInspectorMode;transitionId?:string|null}){
   const {project}=useEditor();
   const clip=clipId?project.clips.find(item=>item.id===clipId):undefined;
   const target=clip&&(['lyrics','text','image','video','visualizer'] as string[]).includes(clip.kind)?clip.kind as CreativeTarget:null;
@@ -138,6 +177,8 @@ export default function CreativeInspector({clipId,mode='all'}:{clipId:string|nul
     if(scope==='clip'&&clip)store.addClipEffect(clip.id,definition.id,definition.version);
     else store.addMasterEffect(definition.id,definition.version);
   };
+
+  if(mode==='transition')return <div className="creative-inspector">{transitionId?<TransitionEditor project={project} transitionId={transitionId}/>:<p className="hint">Select a transition to edit.</p>}</div>;
 
   return <div className="creative-inspector">
     {showAnimations&&<Section title="Text animations" open>{(['intro','loop','outro'] as const).map(role=><AnimationRoleEditor key={role} clip={clip!} role={role} target={textTarget!}/>)}</Section>}

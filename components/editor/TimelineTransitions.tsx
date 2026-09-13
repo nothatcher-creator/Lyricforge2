@@ -10,6 +10,29 @@ function label(clip:Clip){
   return clip.text?.trim()||clip.name||clip.id;
 }
 
+function beginDurationDrag(event:React.PointerEvent<HTMLSpanElement>,transitionId:string,baseDuration:number,scale:number){
+  if(event.button!==0)return;
+  event.preventDefault();
+  event.stopPropagation();
+  const originX=event.clientX;
+  store.begin();
+  const move=(moveEvent:PointerEvent)=>{
+    const deltaPx=moveEvent.clientX-originX;
+    const deltaMs=2*deltaPx/Math.max(scale,.0001)*1000;
+    const durationMs=Math.max(50,Math.round(baseDuration+deltaMs));
+    store.patchTransition(transitionId,{durationMs});
+  };
+  const finish=()=>{
+    window.removeEventListener('pointermove',move);
+    window.removeEventListener('pointerup',finish);
+    window.removeEventListener('pointercancel',finish);
+    store.end();
+  };
+  window.addEventListener('pointermove',move);
+  window.addEventListener('pointerup',finish);
+  window.addEventListener('pointercancel',finish);
+}
+
 function candidate(outgoing:Clip,incoming:Clip):TransitionInstance{
   return {
     id:`candidate:${outgoing.id}:${incoming.id}`,
@@ -72,7 +95,7 @@ export default function TimelineTransitions({trackId,scale}:{trackId:string;scal
       onClick={event=>{event.stopPropagation();store.selectTransition(existing.id);}}
     >
       <span className="timeline-transition-name">{name}</span>
-      <span data-transition-handle aria-hidden="true"/>
+      <span data-transition-handle aria-hidden="true" onPointerDown={event=>beginDurationDrag(event,existing.id,existing.durationMs,scale)}/>
     </button>);
   }
 
