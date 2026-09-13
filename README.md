@@ -39,6 +39,29 @@ The first session contains clearly labelled original example lyrics and a
 synthesized instrumental. These example lyrics are not a transcription of that
 instrumental. Importing a song into the example starts a clean song session.
 
+## Creative catalog and portable projects
+
+LyricForge includes an official catalog for fonts, effects, transitions, and
+text animations. The catalog is offline-first: the last valid catalog metadata,
+installed packages, favorites, and exact installed versions remain available
+without a network connection. Updates are explicit rather than silently applied.
+
+Downloaded effects, transitions, and text animations are declarative presets
+bound to LyricForge's built-in trusted render runtimes. Catalog packages cannot
+introduce executable JavaScript. Package and payload integrity are checked before
+an installed version becomes active. Advanced installation supports local
+LyricForge asset packages and direct manifest URLs; it does not scrape arbitrary
+web pages for plugins.
+
+Projects keep exact catalog asset versions. A newer installed version can become
+the default for newly added content without changing an existing project's
+creative result. Shareable `.lyricforge` bundles can carry the exact validated
+catalog packages needed by the project, and the Restore Dependencies flow can
+recover exact missing versions without silently substituting a newer one.
+Official catalog fonts are limited to redistributable licenses; user-imported
+fonts with unknown redistribution rights require explicit confirmation before
+they are embedded in a shareable project bundle.
+
 ## Architecture
 
 | System | Source |
@@ -52,6 +75,8 @@ instrumental. Importing a song into the example starts a clean song session.
 | Modular transcription providers | `transcription.ts`, `transcription.worker.ts` |
 | Shared preview/export rendering | `renderer.ts`, `animation.ts`, `video-pool.ts` |
 | Media and imported fonts | `assets.ts` |
+| Creative catalog, package validation and offline storage | `catalog-service.ts`, `catalog-installer.ts`, `catalog-storage.ts` |
+| Exact catalog dependency bundling/restoration | `catalog-dependencies.ts`, `catalog-bundle.ts` |
 | Genre presets | `presets.ts` |
 | IndexedDB and bundled projects | `project-manager.ts` |
 | Native video encoding | `exporter.ts` |
@@ -109,7 +134,9 @@ suggest instrumental sections. Every result remains editable.
 ## Verification status
 
 See `QA.md` for the exact verification completed and the remaining acceptance
-checks. This implementation has not yet passed both complete user-requested
-browser workflows. It must not be represented as fully production-verified.
+checks. The creative catalog has automated clean-profile, offline, corruption,
+rollback, and project-restoration coverage. Real Android/tablet interaction and
+both complete downloadable browser workflows are still outstanding, so the app
+must not be represented as fully production-verified.
 
 Third-party runtime notices are in `public/workers/THIRD_PARTY_NOTICES.md`.
