@@ -42,6 +42,16 @@ describe('CatalogService',()=>{
   expect(JSON.parse(new TextDecoder().decode(persisted!.bytes)).generatedAt).toBe(cached.generatedAt);
  });
 
+ it('resolves an exact official dependency before the catalog UI has loaded',async()=>{
+  const storage=createMemoryCatalogStorage();
+  const exact=manifest('catalog.effect.neon-pulse','1.0.0');
+  const fetchIndex=vi.fn(async()=>index('2026-09-13T14:00:00.000Z',[exact]));
+  const service=new CatalogService({storage,appVersion:'0.1.0',fetchIndex,builtins:[]});
+  expect(service.findExact('effect',exact.id,exact.version)).toBeUndefined();
+  await expect(service.ensureExact('effect',exact.id,exact.version)).resolves.toEqual(exact);
+  expect(fetchIndex).toHaveBeenCalledTimes(1);
+ });
+
  it('searches normalized metadata and filters installed and favorites locally',async()=>{
   const storage=createMemoryCatalogStorage();
   const neon=manifest('catalog.effect.neon-pulse','1.0.0');
