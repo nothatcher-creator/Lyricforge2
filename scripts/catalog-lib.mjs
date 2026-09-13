@@ -64,22 +64,30 @@ function assertTrustedRuntimeAndLicense(source){
 }
 export function assertTrustedCatalogSource(source){assertIdentity(source);assertTrustedRuntimeAndLicense(source);return source;}
 
+function normalizePayloadBytes(value,name){
+ if(!ArrayBuffer.isView(value)||value.BYTES_PER_ELEMENT!==1)throw new Error(`Package payload ${name} is missing bytes`);
+ return Uint8Array.from(value);
+}
+
 export function buildAssetPackage(source,payloads={}){
  assertTrustedCatalogSource(source);
  const names=Object.keys(payloads).sort();
  const files=[];
  const archiveEntries={};
+ const normalizedPayloads={};
  for(const name of names){
   safeRelativeFile(name,'package payload path');
   if(name==='manifest.json')throw new Error('Package payload cannot replace manifest.json');
   const payload=payloads[name];
-  if(!payload||!(payload.bytes instanceof Uint8Array))throw new Error(`Package payload ${name} is missing bytes`);
+  if(!payload)throw new Error(`Package payload ${name} is missing bytes`);
+  const bytes=normalizePayloadBytes(payload.bytes,name);
   if(!ALLOWED_CATALOG_MIME.has(payload.mime))throw new Error(`Unsupported payload MIME type: ${String(payload.mime)}`);
-  files.push({path:name,mime:payload.mime,size:payload.bytes.byteLength,sha256:sha256Hex(payload.bytes)});
+  normalizedPayloads[name]=bytes;
+  files.push({path:name,mime:payload.mime,size:bytes.byteLength,sha256:sha256Hex(bytes)});
  }
  const embedded={schemaVersion:1,id:source.id,version:source.version,type:source.type,...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),...(source.font?{font:source.font}:{}),files};
  archiveEntries['manifest.json']=strToU8(stableJson(embedded));
- for(const name of names)archiveEntries[name]=payloads[name].bytes;
+ for(const name of names)archiveEntries[name]=normalizedPayloads[name];
  const bytes=zipSync(archiveEntries,{level:0,mtime:FIXED_ZIP_TIME});
  return {bytes,sha256:sha256Hex(bytes),embedded};
 }
