@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import type {InstalledAssetVersion} from '../catalog-types';
-import {createMemoryCatalogStorage} from '../catalog-storage';
+import {createMemoryCatalogStorage,waitForIndexedDbTransaction} from '../catalog-storage';
 
 function version(id:string,version:string):InstalledAssetVersion{
  return {
@@ -13,6 +13,8 @@ function version(id:string,version:string):InstalledAssetVersion{
   },
  };
 }
+
+function fakeTransaction(){return {oncomplete:null,onerror:null,onabort:null,error:null} as unknown as IDBTransaction;}
 
 describe('catalog storage',()=>{
  it('keeps immutable exact versions side by side and tracks a separate current pointer',async()=>{
@@ -51,5 +53,23 @@ describe('catalog storage',()=>{
   expect(cached?.bytes).toEqual(new Uint8Array([1,2,3]));
   if(cached)cached.bytes[1]=8;
   expect((await storage.getCachedBytes('preview:test'))?.bytes).toEqual(new Uint8Array([1,2,3]));
+ });
+
+ it('waits for the IndexedDB transaction commit rather than an earlier request success',async()=>{
+  const transaction=fakeTransaction();
+  let settled=false;
+  const waiting=waitForIndexedDbTransaction(transaction).then(()=>{settled=true;});
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  transaction.oncomplete?.(new Event('complete'));
+  await waiting;
+  expect(settled).toBe(true);
+ });
+
+ it('rejects an aborted IndexedDB write transaction',async()=>{
+  const transaction=fakeTransaction();
+  const waiting=waitForIndexedDbTransaction(transaction);
+  transaction.onabort?.(new Event('abort'));
+  await expect(waiting).rejects.toThrow(/transaction/i);
  });
 });
