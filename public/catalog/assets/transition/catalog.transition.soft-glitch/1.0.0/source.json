@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.transition.soft-glitch",
+  "version": "1.0.0",
+  "type": "transition",
+  "name": "Soft Glitch",
+  "description": "A restrained glitch cut that keeps lyrics readable while adding digital energy.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["glitch", "digital", "transition"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "transition.glitch",
+  "preset": {"intensity": 0.42},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-13T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

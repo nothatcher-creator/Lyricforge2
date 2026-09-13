@@ -1,7 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 const root = path.resolve("dist/client");
-for (const relative of ["index.html", "workers/analysis.js", "workers/transcription.js"]) {
+for (const relative of [
+  "index.html",
+  "workers/analysis.js",
+  "workers/transcription.js",
+  "catalog/index.json",
+  "catalog/assets/effect/catalog.effect.neon-pulse/1.0.0/asset.lyricforge-asset",
+  "catalog/assets/transition/catalog.transition.soft-glitch/1.0.0/asset.lyricforge-asset",
+  "catalog/assets/text-animation/catalog.animation.starlight-rise/1.0.0/asset.lyricforge-asset",
+  "catalog/assets/font/catalog.font.bebas-neue/1.0.0/asset.lyricforge-asset"
+]) {
   if (!fs.existsSync(path.join(root, relative))) throw new Error(`Missing Pages artifact: ${relative}`);
 }
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");

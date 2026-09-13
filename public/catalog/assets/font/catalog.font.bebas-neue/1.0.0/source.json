@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.bebas-neue",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Bebas Neue",
+  "description": "A condensed display face suited to large lyric titles and bold hooks.",
+  "author": "Ryoichi Tsunekawa / Dharma Type",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bebasneue",
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["display", "condensed", "titles"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Bebas Neue", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-13T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "BebasNeue-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bebasneue/BebasNeue-Regular.ttf", "gitBlobSha1": "c328c6e08b20a20a1de47d823e007ee73812a438"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bebasneue/OFL.txt", "gitBlobSha1": "da9571488f44176ef90d7f10c0f402c8be74db67"}
+  ]
+}
