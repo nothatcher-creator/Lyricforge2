@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import {act,fireEvent,render,screen} from '@testing-library/react';
-import {beforeEach,describe,expect,it} from 'vitest';
+import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
+import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import {TooltipProvider} from '@/components/ui/tooltip';
 import {createProject,makeClip,makeTrack} from '@/lib/lyricforge/model';
 import {store} from '@/lib/lyricforge/store';
@@ -26,6 +26,7 @@ describe('CreativeInspector',()=>{
     const {project}=projectWithText();
     act(()=>store.setProject(project));
   });
+  afterEach(()=>cleanup());
 
   it('shows canonical animation slots and clip effect creation for selected text',()=>{
     renderInspector('text-a');
