@@ -149,3 +149,8 @@ export function createBrowserCatalogStorage(){
  const binary=typeof caches!=='undefined'&&typeof location!=='undefined'?new BrowserCacheStorage(fallback):fallback;
  return new CatalogStorage(backend,binary);
 }
+
+let sharedBrowserStorage:CatalogStorage|undefined;
+export function getBrowserCatalogStorage(){
+ return sharedBrowserStorage??=createBrowserCatalogStorage();
+}
