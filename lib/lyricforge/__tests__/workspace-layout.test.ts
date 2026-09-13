@@ -7,6 +7,8 @@ describe('classifyWorkspace',()=>{
 });
 describe('resolveWorkspacePanels',()=>{
   it('starts phone portrait with side panels closed',()=>expect(resolveWorkspacePanels('phone-portrait',{left:true,right:true},'initialize')).toEqual({left:false,right:false}));
+  it('restores the library when compact mode initializes from a collapsed portrait workspace',()=>expect(resolveWorkspacePanels('compact',{left:false,right:false},'initialize')).toEqual({left:true,right:false}));
+  it('restores both side panels when desktop initializes from a collapsed portrait workspace',()=>expect(resolveWorkspacePanels('desktop',{left:false,right:false},'initialize')).toEqual({left:true,right:true}));
   it('opening the library on phone closes the inspector',()=>expect(resolveWorkspacePanels('phone-portrait',{left:false,right:true},'library',true)).toEqual({left:true,right:false}));
   it('opening the inspector on phone closes the library',()=>expect(resolveWorkspacePanels('phone-portrait',{left:true,right:false},'inspector',true)).toEqual({left:false,right:true}));
   it('desktop inspector changes do not collapse the library',()=>expect(resolveWorkspacePanels('desktop',{left:true,right:false},'inspector',true)).toEqual({left:true,right:true}));

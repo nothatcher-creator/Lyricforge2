@@ -1,8 +1,17 @@
 import {describe,expect,it} from 'vitest';
+import * as mediaImport from '../media-import';
 import {replacePrimaryAudioProject} from '../media-import';
-import {createProject,makeClip,makeTrack,type Asset} from '../model';
+import {createProject,makeClip,makeTrack,type Asset,type Project} from '../model';
 
 const DEMO_NAME='Golden hour — instrumental demo.wav';
+
+type AnalysisWorkerLike={terminate:()=>void};
+type MediaImportRuntime={
+  isCurrentPrimaryAudioAsset?:(project:Project,assetId:string)=>boolean;
+  supersedeAnalysisWorker?:<T extends AnalysisWorkerLike>(previous:T|null,next:T)=>T;
+  activeProcessingLabel?:(blocking:string,analysis:string)=>string;
+};
+const runtime=mediaImport as unknown as MediaImportRuntime;
 
 function audioAsset(id:string,name:string,duration:number):Asset{
   return {id,name,type:'audio',mime:'audio/wav',size:100,duration};
@@ -54,5 +63,35 @@ describe('replacePrimaryAudioProject',()=>{
     expect(next.clips.filter(clip=>clip.trackId===audioTrack.id)).toHaveLength(1);
     expect(next.clips.find(clip=>clip.trackId===audioTrack.id)?.assetId).toBe(song.id);
     expect(next.assets.map(asset=>asset.id)).toEqual(expect.arrayContaining([old.id,song.id]));
+  });
+
+  it('identifies only the currently attached primary audio asset as current',()=>{
+    let project=createProject('Race guard');
+    const audioTrack=project.tracks.find(track=>track.kind==='audio')!;
+    const old=audioAsset('old-audio','old.wav',20000);
+    const oldClip=makeClip('audio',audioTrack.id,0,20000,old.name);oldClip.assetId=old.id;
+    project={...project,assets:[old],clips:[oldClip],duration:20000};
+    const song=audioAsset('new-audio','new.wav',45000);
+    const next=replacePrimaryAudioProject(project,song);
+
+    expect(runtime.isCurrentPrimaryAudioAsset).toBeTypeOf('function');
+    expect(runtime.isCurrentPrimaryAudioAsset!(next,old.id)).toBe(false);
+    expect(runtime.isCurrentPrimaryAudioAsset!(next,song.id)).toBe(true);
+  });
+
+  it('terminates the previous analysis worker when a newer analysis supersedes it',()=>{
+    let terminated=0;
+    const previous={terminate:()=>{terminated++;}};
+    const next={terminate:()=>{}};
+
+    expect(runtime.supersedeAnalysisWorker).toBeTypeOf('function');
+    expect(runtime.supersedeAnalysisWorker!(previous,next)).toBe(next);
+    expect(terminated).toBe(1);
+  });
+
+  it('keeps analysis progress visible after blocking import work finishes',()=>{
+    expect(runtime.activeProcessingLabel).toBeTypeOf('function');
+    expect(runtime.activeProcessingLabel!('','Analyzing new.wav…')).toBe('Analyzing new.wav…');
+    expect(runtime.activeProcessingLabel!('Importing new.wav…','Analyzing new.wav…')).toBe('Importing new.wav…');
   });
 });

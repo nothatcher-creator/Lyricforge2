@@ -2,6 +2,23 @@ import {makeClip,makeTrack,type Asset,type Project} from './model';
 
 export const DEMO_AUDIO_NAME='Golden hour — instrumental demo.wav';
 
+type AnalysisWorkerLike={terminate:()=>void};
+
+export function isCurrentPrimaryAudioAsset(project:Project,assetId:string):boolean{
+  const track=project.tracks.find(item=>item.kind==='audio'&&!item.locked);
+  if(!track)return false;
+  return project.clips.some(item=>item.kind==='audio'&&item.trackId===track.id&&item.assetId===assetId);
+}
+
+export function supersedeAnalysisWorker<T extends AnalysisWorkerLike>(previous:T|null,next:T):T{
+  previous?.terminate();
+  return next;
+}
+
+export function activeProcessingLabel(blocking:string,analysis:string):string{
+  return blocking||analysis;
+}
+
 export function replacePrimaryAudioProject(project:Project,asset:Asset):Project{
   if(asset.type!=='audio'||!asset.duration)throw new Error('Primary audio replacement requires a decoded audio asset.');
 

@@ -7,11 +7,12 @@ export function classifyWorkspace(width:number,height:number,coarsePointer:boole
   return 'desktop';
 }
 export function resolveWorkspacePanels(mode:WorkspaceMode,current:WorkspacePanels,action:WorkspacePanelAction,open=true):WorkspacePanels{
-  if(mode!=='phone-portrait'){
-    if(action==='initialize')return current;
-    return action==='library'?{...current,left:open}:{...current,right:open};
+  if(action==='initialize'){
+    if(mode==='phone-portrait')return {left:false,right:false};
+    if(mode==='compact')return {left:true,right:false};
+    return {left:true,right:true};
   }
-  if(action==='initialize')return {left:false,right:false};
+  if(mode!=='phone-portrait')return action==='library'?{...current,left:open}:{...current,right:open};
   if(action==='library')return open?{left:true,right:false}:{...current,left:false};
   return open?{left:false,right:true}:{...current,right:false};
 }
