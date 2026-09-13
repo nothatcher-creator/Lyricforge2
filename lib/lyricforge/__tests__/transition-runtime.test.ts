@@ -46,7 +46,7 @@ describe('explicit transition runtime',()=>{
   });
 
   it('centers a one-second window on the cut',()=>{
-    const w=transitionWindow(pairProject({aEnd:5000,bStart:5000}),{...transition(),durationMs:1000});
+    const w=transitionWindow(pairProject({aEnd:5000,bStart:5000,bEnd:6000}),{...transition(),durationMs:1000});
     expect(w).toMatchObject({cutMs:5000,startMs:4500,endMs:5500,effectiveDurationMs:1000});
   });
 
