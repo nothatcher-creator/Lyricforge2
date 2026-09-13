@@ -1,0 +1,86 @@
+name: Foundation Task 2 - Test Harness
+
+on:
+  push:
+    branches: [feat/source-foundation]
+    paths:
+      - .github/workflows/foundation-task2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  test-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/source-foundation
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+
+      - name: Install existing dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Add Vitest dependencies
+        run: pnpm add -D vitest jsdom @testing-library/react @testing-library/user-event
+
+      - name: Configure scripts and tests
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const p = JSON.parse(fs.readFileSync('package.json','utf8'));
+          const legacy = p.scripts?.test;
+          p.scripts = p.scripts || {};
+          if (legacy && legacy !== 'vitest') p.scripts['test:legacy'] = legacy;
+          p.scripts.test = 'vitest';
+          p.scripts['test:run'] = 'vitest run';
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+
+          cat > vitest.config.ts <<'EOF'
+          import path from "node:path";
+          import { defineConfig } from "vitest/config";
+
+          export default defineConfig({
+            test: {
+              environment: "jsdom",
+              include: ["**/__tests__/**/*.test.ts", "**/__tests__/**/*.test.tsx"],
+              restoreMocks: true,
+            },
+            resolve: {
+              alias: {
+                "@": path.resolve(__dirname, "."),
+              },
+            },
+          });
+          EOF
+
+          mkdir -p lib/lyricforge/__tests__
+          cat > lib/lyricforge/__tests__/smoke.test.ts <<'EOF'
+          import { describe, expect, it } from "vitest";
+
+          describe("LyricForge test harness", () => {
+            it("runs TypeScript tests", () => {
+              expect(1 + 1).toBe(2);
+            });
+          });
+          EOF
+
+      - name: Run new and existing tests
+        run: |
+          pnpm test -- --run lib/lyricforge/__tests__/smoke.test.ts
+          pnpm run test:legacy
+
+      - name: Commit test harness
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add package.json pnpm-lock.yaml vitest.config.ts lib/lyricforge/__tests__/smoke.test.ts
+          git commit -m 'test: add LyricForge unit test harness'
+          git push origin HEAD:feat/source-foundation
