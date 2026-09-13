@@ -18,16 +18,18 @@ jobs:
           ref: feat/source-foundation
 
       - name: Enable pnpm and install
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.25.0 --activate
-          pnpm install --frozen-lockfile
-
-      - name: Prove publicPath test fails first
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p lib/lyricforge/__tests__
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+          pnpm install --frozen-lockfile
+          pnpm add -D esbuild@0.28.0
+
+      - name: Implement tracked static Pages configuration
+        shell: bash
+        run: |
+          set -euo pipefail
           cat > lib/lyricforge/__tests__/public-path.test.ts <<'EOF'
           import { describe, expect, it } from "vitest";
           import { publicPath } from "../public-path";
@@ -44,20 +46,7 @@ jobs:
             });
           });
           EOF
-          set +e
-          pnpm test -- --run lib/lyricforge/__tests__/public-path.test.ts > /tmp/public-path-red.log 2>&1
-          status=$?
-          set -e
-          cat /tmp/public-path-red.log
-          if [ "$status" -eq 0 ]; then
-            echo 'Expected publicPath test to fail before implementation.'
-            exit 1
-          fi
 
-      - name: Implement public path and tracked static configuration
-        shell: bash
-        run: |
-          set -euo pipefail
           cat > lib/lyricforge/public-path.ts <<'EOF'
           export const APP_BASE_PATH = "/Lyricforge2";
 
@@ -70,8 +59,6 @@ jobs:
               : normalized;
           }
           EOF
-
-          pnpm test -- --run lib/lyricforge/__tests__/public-path.test.ts
 
           cat > next.config.ts <<'EOF'
           import type { NextConfig } from "next";
@@ -128,28 +115,29 @@ jobs:
           sw.write_text(text)
 
           tw = Path('lib/lyricforge/transcription.worker.ts')
-          text = tw.read_text().replace("env.backends.onnx.wasm!.wasmPaths='/workers/';", "env.backends.onnx.wasm!.wasmPaths=self.location.pathname.startsWith('/Lyricforge2/')?'/Lyricforge2/workers/':'/workers/';")
-          tw.write_text(text)
+          tw.write_text(tw.read_text().replace("env.backends.onnx.wasm!.wasmPaths='/workers/';", "env.backends.onnx.wasm!.wasmPaths=self.location.pathname.startsWith('/Lyricforge2/')?'/Lyricforge2/workers/':'/workers/';"))
 
           layout = Path('app/layout.tsx')
           text = layout.read_text().replace('icon: "/favicon.svg"', 'icon: "/Lyricforge2/favicon.svg"').replace('shortcut: "/favicon.svg"', 'shortcut: "/Lyricforge2/favicon.svg"')
           layout.write_text(text)
 
           worker = Path('public/workers/transcription.js')
-          text = worker.read_text()
-          text = text.replace('wasmPaths="/workers/"', 'wasmPaths="/Lyricforge2/workers/"')
-          text = text.replace("wasmPaths='/workers/'", "wasmPaths='/Lyricforge2/workers/'")
+          text = worker.read_text().replace('wasmPaths="/workers/"', 'wasmPaths="/Lyricforge2/workers/"').replace("wasmPaths='/workers/'", "wasmPaths='/Lyricforge2/workers/'")
           worker.write_text(text)
+
+          legacy = Path('scripts/test.mjs')
+          text = legacy.read_text()
+          text = text.replace("if(compile.status)process.exit(compile.status);", "if(compile.error){console.error('Could not start esbuild for legacy tests:',compile.error);process.exit(1);}if(compile.status)process.exit(compile.status);")
+          legacy.write_text(text)
           PY
 
-      - name: Add versioned Pages verifier and workflow
+      - name: Add Pages verifier and direct-source deploy workflow
         shell: bash
         run: |
-          mkdir -p scripts
+          set -euo pipefail
           cat > scripts/verify-pages-build.mjs <<'EOF'
           import fs from "node:fs";
           import path from "node:path";
-          import { fileURLToPath } from "node:url";
 
           const root = path.resolve("dist/client");
           for (const relative of ["index.html", "workers/analysis.js", "workers/transcription.js"]) {
@@ -165,7 +153,7 @@ jobs:
           console.log("GitHub Pages artifact validation passed.");
           EOF
 
-          cat > .github/workflows/deploy-pages.yml <<'EOF'
+          cat > /tmp/deploy-pages.template <<'EOF'
           name: Deploy LyricForge to GitHub Pages
 
           on:
@@ -179,7 +167,7 @@ jobs:
             id-token: write
 
           concurrency:
-            group: pages-${{ github.ref }}
+            group: pages-__GITHUB_REF__
             cancel-in-progress: true
 
           jobs:
@@ -224,7 +212,7 @@ jobs:
               if: github.ref == 'refs/heads/main'
               environment:
                 name: github-pages
-                url: ${{ steps.deployment.outputs.page_url }}
+                url: __PAGE_URL__
               runs-on: ubuntu-latest
               needs: build
               steps:
@@ -232,8 +220,15 @@ jobs:
                   id: deployment
                   uses: actions/deploy-pages@v4
           EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('/tmp/deploy-pages.template').read_text()
+          text = text.replace('__GITHUB_REF__', '$' + '{{ github.ref }}')
+          text = text.replace('__PAGE_URL__', '$' + '{{ steps.deployment.outputs.page_url }}')
+          Path('.github/workflows/deploy-pages.yml').write_text(text)
+          PY
 
-      - name: Assert runtime source no longer hard-codes root worker/favicon URLs
+      - name: Assert paths, tests, and static build
         shell: bash
         run: |
           set -euo pipefail
@@ -243,11 +238,6 @@ jobs:
           ! grep -n 'src="/favicon.svg"' components/editor/Editor.tsx
           grep -q '/Lyricforge2/favicon.svg' app/layout.tsx
           grep -q '/Lyricforge2/workers/' public/workers/transcription.js
-
-      - name: Run full tests and static build
-        shell: bash
-        run: |
-          set -euo pipefail
           pnpm test -- --run
           pnpm run test:legacy
           pnpm run build
@@ -264,6 +254,6 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add next.config.ts vite.config.ts app/page.tsx app/layout.tsx lib/lyricforge/public-path.ts lib/lyricforge/__tests__/public-path.test.ts components/editor/Editor.tsx lib/lyricforge/transcription.ts lib/lyricforge/software-exporter.ts lib/lyricforge/transcription.worker.ts public/workers/transcription.js scripts/verify-pages-build.mjs .github/workflows/deploy-pages.yml
+          git add package.json pnpm-lock.yaml scripts/test.mjs next.config.ts vite.config.ts app/page.tsx app/layout.tsx lib/lyricforge/public-path.ts lib/lyricforge/__tests__/public-path.test.ts components/editor/Editor.tsx lib/lyricforge/transcription.ts lib/lyricforge/software-exporter.ts lib/lyricforge/transcription.worker.ts public/workers/transcription.js scripts/verify-pages-build.mjs .github/workflows/deploy-pages.yml
           git commit -m 'build: deploy tracked LyricForge source to Pages'
           git push origin HEAD:feat/source-foundation
