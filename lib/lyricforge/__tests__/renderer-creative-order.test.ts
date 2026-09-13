@@ -33,9 +33,10 @@ describe('Renderer creative frame adapter',()=>{
   it('validates creative references before hardware encoder initialization',()=>{
     const source=readFileSync(resolve(process.cwd(),'lib/lyricforge/exporter.ts'),'utf8');
     expect(source).toContain("import {validateCreativeProject} from './creative-runtime'");
+    expect(source).toContain('validateCreativeProject(project)');
     const renderVideoStart=source.indexOf('export async function renderVideo');
     const renderVideoSource=source.slice(renderVideoStart);
-    const validation=renderVideoSource.indexOf('validateCreativeProject(project)');
+    const validation=renderVideoSource.indexOf('assertCreativeExportReady(project)');
     const encoderImport=renderVideoSource.indexOf("await import('mediabunny')");
     expect(validation).toBeGreaterThan(-1);
     expect(encoderImport).toBeGreaterThan(-1);
