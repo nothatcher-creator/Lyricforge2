@@ -41,6 +41,10 @@ export class CreativeRegistry{
     }
   }
 
+  all(type:CreativeDefinition['type']):readonly CreativeDefinition[]{
+    return this.definitions.filter(definition=>definition.type===type);
+  }
+
   resolve(type:CreativeDefinition['type'],id:string,version:string):CreativeDefinition|null{
     const defs=this.byKey.get(`${type}:${id}`)??[];
     return defs.find(d=>d.version===version)
