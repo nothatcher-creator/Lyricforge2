@@ -1,3 +1,4 @@
+import type {AnimationInstance,AnimationRole,EffectInstance,ProjectDependency,TransitionInstance} from './creative-assets';
 export const BRAND = { name: 'LyricForge', fileExtension: 'lyricforge', version: 1 };
 export type Kind = 'audio'|'lyrics'|'text'|'image'|'video'|'visualizer'|'effect';
 export type Section = 'Verse'|'Chorus'|'Bridge'|'Intro'|'Outro'|'Instrumental';
@@ -18,14 +19,16 @@ export interface Clip {
   id:string; trackId:string; kind:Kind; start:number; end:number; name:string; text:string;
   assetId?:string; offset:number; loop:boolean; section:Section; words:Word[]; confidence?:number; timingSource?:'manual'|'estimated'|'detected';
   style:Partial<Style>; keyframes:Keyframe[]; group?:string;
+  animations?:Partial<Record<AnimationRole,AnimationInstance>>; effects:EffectInstance[];
   fit:'cover'|'contain'; brightness:number; contrast:number; saturation:number; hue:number; blend:GlobalCompositeOperation;
   visualizer?:'Bars'|'Spectrum'|'Waveform'|'Circle'|'Particles'|'Glow'|'Beat flash'; sensitivity:number; smoothing:number;
 }
 export interface Track { id:string; name:string; kind:Kind; visible:boolean; locked:boolean; mute:boolean; solo:boolean; opacity:number; }
 export interface Asset { id:string; name:string; type:'audio'|'image'|'video'|'font'; mime:string; size:number; duration?:number; fontFamily?:string; }
 export interface Project {
-  version:1; id:string; name:string; createdAt:number; updatedAt:number; width:number; height:number; fps:number; duration:number;
+  version:1; schemaVersion:number; id:string; name:string; createdAt:number; updatedAt:number; width:number; height:number; fps:number; duration:number;
   tracks:Track[]; clips:Clip[]; assets:Asset[]; lyricStyle:Style;
+  dependencies:ProjectDependency[]; masterEffects:EffectInstance[]; transitions:TransitionInstance[];
   background:{ type:'gradient'|'solid'|'pattern'; color:string; color2:string; angle:number; vignette:number; motion:number; };
   markers:{id:string;time:number;name:string}[]; beats:number[]; bpm:number; waveform:number[]; energy:number[]; spectrum:number[][]; preset:string;
   sections:{start:number;end:number;name:string;estimated:boolean}[];
@@ -35,9 +38,9 @@ export const clamp=(v:number,min:number,max:number)=>Math.max(min,Math.min(max,v
 export const ms=(v:number)=>Math.round(v);
 export const defaultStyle:Style={font:'Arial',size:84,weight:800,italic:false,underline:false,uppercase:false,color:'#fff6ea',accent:'#f2b66d',gradient:false,gradientColor:'#ff835a',letterSpacing:-1,wordSpacing:4,lineHeight:1.25,align:'center',x:0.5,y:0.52,scale:1,rotation:0,opacity:1,stroke:0,strokeColor:'#171717',shadow:16,glow:0,blur:0,boxColor:'#101113',boxOpacity:0,radius:16,padding:22,entrance:'Fade',idle:'None',exit:'Fade',emphasis:'None',animationDuration:350,intensity:0.5,delay:0,direction:1,easing:'ease-out',karaoke:'Color',neighbors:false,previousColor:'#9996a4',upcomingColor:'#6b6b77',chorusColor:'#ffc880',verseColor:'#fff6ea',sectionColors:false};
 export function makeTrack(kind:Kind,name:string):Track {return {id:uid(),name,kind,visible:true,locked:false,mute:false,solo:false,opacity:1};}
-export function makeClip(kind:Kind,trackId:string,start:number,end:number,text=''):Clip {return {id:uid(),trackId,kind,start:ms(start),end:ms(Math.max(start+10,end)),name:text||kind,text,offset:0,loop:true,section:'Verse',words:kind==='lyrics'||kind==='text'?evenlyTimeWords(text,ms(start),ms(Math.max(start+10,end))):[],timingSource:kind==='lyrics'?'estimated':undefined,style:{},keyframes:[],fit:'cover',brightness:1,contrast:1,saturation:1,hue:0,blend:'source-over',sensitivity:1,smoothing:0.7};}
+export function makeClip(kind:Kind,trackId:string,start:number,end:number,text=''):Clip {return {id:uid(),trackId,kind,start:ms(start),end:ms(Math.max(start+10,end)),name:text||kind,text,offset:0,loop:true,section:'Verse',words:kind==='lyrics'||kind==='text'?evenlyTimeWords(text,ms(start),ms(Math.max(start+10,end))):[],timingSource:kind==='lyrics'?'estimated':undefined,style:{},keyframes:[],effects:[],fit:'cover',brightness:1,contrast:1,saturation:1,hue:0,blend:'source-over',sensitivity:1,smoothing:0.7};}
 export function createProject(name='Untitled session'):Project {
- return {version:1,id:uid(),name,createdAt:Date.now(),updatedAt:Date.now(),width:1920,height:1080,fps:30,duration:30000,tracks:[makeTrack('lyrics','Lyrics'),makeTrack('audio','Song')],clips:[],assets:[],lyricStyle:{...defaultStyle},background:{type:'gradient',color:'#241d30',color2:'#bd6e4e',angle:135,vignette:0.6,motion:0.3},markers:[],beats:[],bpm:0,waveform:[],energy:[],spectrum:[],preset:'Indie',sections:[]};
+ return {version:1,schemaVersion:3,id:uid(),name,createdAt:Date.now(),updatedAt:Date.now(),width:1920,height:1080,fps:30,duration:30000,tracks:[makeTrack('lyrics','Lyrics'),makeTrack('audio','Song')],clips:[],assets:[],lyricStyle:{...defaultStyle},dependencies:[],masterEffects:[],transitions:[],background:{type:'gradient',color:'#241d30',color2:'#bd6e4e',angle:135,vignette:0.6,motion:0.3},markers:[],beats:[],bpm:0,waveform:[],energy:[],spectrum:[],preset:'Indie',sections:[]};
 }
 export function evenlyTimeWords(text:string,start:number,end:number):Word[] {const ws=text.trim().split(/\s+/).filter(Boolean);return ws.map((w,i)=>({text:w,start:ms(start+(end-start)*i/ws.length),end:ms(start+(end-start)*(i+1)/ws.length)}));}
 export function setText(clip:Clip,text:string):Clip {const same=text.trim().split(/\s+/).length===clip.words.length;return {...clip,text,name:text,words:same?clip.words.map((w,i)=>({...w,text:text.trim().split(/\s+/)[i]})):evenlyTimeWords(text,clip.start,clip.end),timingSource:same?clip.timingSource:'estimated'};}

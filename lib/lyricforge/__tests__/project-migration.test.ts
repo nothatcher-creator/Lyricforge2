@@ -10,6 +10,20 @@ describe("migrateProjectDocument", () => {
     expect(migrated.layers).toEqual(legacy.layers);
   });
 
+  it("adds creative runtime defaults without changing legacy timing or effect clips", () => {
+    const legacy = { clips: [{ id: "fx-old", kind: "effect", start: 100, end: 900 }], duration: 1000 };
+    const migrated = migrateProjectDocument(legacy);
+    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.masterEffects).toEqual([]);
+    expect(migrated.transitions).toEqual([]);
+    expect((migrated.clips as any[])[0]).toMatchObject({ id: "fx-old", kind: "effect", start: 100, end: 900, effects: [] });
+  });
+
+  it("is idempotent for already migrated creative fields", () => {
+    const once = migrateProjectDocument({ clips: [], masterEffects: [], transitions: [], dependencies: [] });
+    expect(migrateProjectDocument(once)).toEqual(once);
+  });
+
   it("normalizes and de-duplicates valid dependencies", () => {
     const migrated = migrateProjectDocument({ dependencies: [
       { id: "catalog.glow", type: "effect", version: "1.0.0", sourceCatalogId: "official" },
