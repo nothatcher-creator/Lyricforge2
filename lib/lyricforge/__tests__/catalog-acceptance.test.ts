@@ -8,6 +8,7 @@ import {CatalogInstaller} from '../catalog-installer';
 import {CatalogService} from '../catalog-service';
 import {createMemoryCatalogStorage} from '../catalog-storage';
 import type {CatalogAssetManifest,CatalogIndex} from '../catalog-types';
+import {validateCatalogAssetManifest} from '../catalog-validation';
 import {creativeRegistry,isTrustedRuntime} from '../creative-registry';
 import {createProject,makeClip,makeTrack} from '../model';
 
@@ -39,7 +40,7 @@ function creativeFixture(options:{
  } as const;
  const built=buildAssetPackage(source,{'preset.json':{mime:'application/json',bytes:encoder.encode(stableJson(source.preset))}});
  const relativeDir=`assets/${options.type}/${options.id}/${version}`;
- return {manifest:remoteManifestFromSource(source,built,relativeDir) as CatalogAssetManifest,bytes:built.bytes};
+ return {manifest:validateCatalogAssetManifest(remoteManifestFromSource(source,built,relativeDir)),bytes:built.bytes};
 }
 
 function fontFixture():Fixture{
@@ -63,7 +64,7 @@ function fontFixture():Fixture{
   'BebasNeue-Regular.ttf':{mime:'font/ttf',bytes:new Uint8Array([0,1,0,0,66,101,98,97,115])},
   'OFL.txt':{mime:'text/plain',bytes:strToU8('SIL OPEN FONT LICENSE Version 1.1')},
  });
- return {manifest:remoteManifestFromSource(source,built,'assets/font/catalog.font.bebas-neue/1.0.0') as CatalogAssetManifest,bytes:built.bytes};
+ return {manifest:validateCatalogAssetManifest(remoteManifestFromSource(source,built,'assets/font/catalog.font.bebas-neue/1.0.0')),bytes:built.bytes};
 }
 
 function officialFixtures(){
