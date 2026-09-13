@@ -60,8 +60,7 @@ jobs:
           page = Path('source/app/page.tsx')
           page_text = page.read_text()
           if 'export const dynamic' not in page_text:
-              page_text = 'export const dynamic = "force-static";\n' + page_text
-              page.write_text(page_text)
+              page.write_text('export const dynamic = "force-static";\n' + page_text)
 
           roots = [Path('source/app'), Path('source/components'), Path('source/lib')]
           for root in roots:
@@ -74,6 +73,12 @@ jobs:
                   text = text.replace("'/workers/", "'/Lyricforge2/workers/")
                   text = text.replace('"/workers/', '"/Lyricforge2/workers/')
                   path.write_text(text)
+
+          worker = Path('source/public/workers/transcription.js')
+          if worker.exists():
+              text = worker.read_text()
+              text = text.replace('wasmPaths="/workers/"', 'wasmPaths="/Lyricforge2/workers/"')
+              worker.write_text(text)
           PY
 
           if grep -RInE 'next/headers|headers\(|cookies\(|redirect\(' source/app source/components source/lib --include='*.ts' --include='*.tsx'; then
@@ -89,19 +94,63 @@ jobs:
         working-directory: source
         run: npm run build
 
+      - name: Normalize Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d source/dist/client/Lyricforge2/_next ]; then
+            rm -rf source/dist/client/_next
+            mv source/dist/client/Lyricforge2/_next source/dist/client/_next
+            rmdir source/dist/client/Lyricforge2
+          fi
+          touch source/dist/client/.nojekyll
+
       - name: Verify GitHub Pages artifact
         shell: bash
         run: |
           set -euo pipefail
-          echo 'Exported files:'
-          find source/dist/client -maxdepth 2 -type f | sort | head -100 || true
           test -f source/dist/client/index.html
+          test -f source/dist/client/_next/static/chunks/index-*.js
           test -f source/dist/client/workers/analysis.js
           test -f source/dist/client/workers/transcription.js
           grep -q 'LyricForge' source/dist/client/index.html
           ! grep -q 'Cloudflare Local Explorer' source/dist/client/index.html
-          grep -q '/Lyricforge2/' source/dist/client/index.html
-          ! grep -RqsE "['\"]/(workers/|favicon\.svg)" source/dist/client --include='*.html' --include='*.js'
+          grep -q '/Lyricforge2/_next/' source/dist/client/index.html
+          grep -q '/Lyricforge2/workers/' source/dist/client/workers/transcription.js
+          test ! -d source/dist/client/Lyricforge2
+          ! grep -RqsE '(["'"'])/(workers/|favicon\.svg)' source/dist/client --include='*.html' --include='*.js'
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          from urllib.parse import urlsplit
+
+          root = Path('source/dist/client')
+          html = (root / 'index.html').read_text()
+
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.urls=[]
+              def handle_starttag(self, tag, attrs):
+                  for k,v in attrs:
+                      if k in {'src','href'} and v:
+                          self.urls.append(v)
+
+          p=Parser(); p.feed(html)
+          missing=[]
+          prefix='/Lyricforge2/'
+          for url in p.urls:
+              path=urlsplit(url).path
+              if not path.startswith(prefix):
+                  continue
+              local=root / path[len(prefix):]
+              if not local.is_file():
+                  missing.append((url, str(local)))
+          if missing:
+              raise SystemExit('Missing generated assets: '+repr(missing))
+          print('Validated', len(p.urls), 'HTML asset references.')
+          PY
+
           echo 'Static export validation passed.'
 
       - name: Upload tested static site
@@ -110,4 +159,5 @@ jobs:
         with:
           name: lyricforge-pages-test
           path: source/dist/client
+          include-hidden-files: true
           retention-days: 1
