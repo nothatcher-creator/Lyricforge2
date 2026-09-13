@@ -159,6 +159,11 @@ export class CatalogService{
   return this.snapshot.index?.items.find(item=>item.type===type&&item.id===id&&item.version===version);
  }
 
+ async ensureExact(type:CatalogAssetType,id:string,version:string){
+  await this.load();
+  return this.findExact(type,id,version);
+ }
+
  getUpdateState(type:CatalogAssetType,id:string):CatalogUpdateState|undefined{
   const key=catalogAssetKey(type,id);
   const currentVersion=this.snapshot.currentVersions[key];
