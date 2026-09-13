@@ -9,6 +9,7 @@ type AnalysisWorkerLike={terminate:()=>void};
 type MediaImportRuntime={
   isCurrentPrimaryAudioAsset?:(project:Project,assetId:string)=>boolean;
   supersedeAnalysisWorker?:<T extends AnalysisWorkerLike>(previous:T|null,next:T)=>T;
+  activeProcessingLabel?:(blocking:string,analysis:string)=>string;
 };
 const runtime=mediaImport as unknown as MediaImportRuntime;
 
@@ -86,5 +87,11 @@ describe('replacePrimaryAudioProject',()=>{
     expect(runtime.supersedeAnalysisWorker).toBeTypeOf('function');
     expect(runtime.supersedeAnalysisWorker!(previous,next)).toBe(next);
     expect(terminated).toBe(1);
+  });
+
+  it('keeps analysis progress visible after blocking import work finishes',()=>{
+    expect(runtime.activeProcessingLabel).toBeTypeOf('function');
+    expect(runtime.activeProcessingLabel!('','Analyzing new.wav…')).toBe('Analyzing new.wav…');
+    expect(runtime.activeProcessingLabel!('Importing new.wav…','Analyzing new.wav…')).toBe('Importing new.wav…');
   });
 });
