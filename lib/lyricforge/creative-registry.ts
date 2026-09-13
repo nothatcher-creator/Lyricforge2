@@ -110,6 +110,10 @@ export class CreativeRegistry{
     });
   }
 
+  trustedRuntime(type:CreativeDefinition['type'],runtime:string):CreativeDefinition|null{
+    return this.builtins.find(definition=>definition.type===type&&definition.runtime===runtime)??null;
+  }
+
   resolve(type:CreativeDefinition['type'],id:string,version:string):CreativeDefinition|null{
     const defs=this.byKey.get(`${type}:${id}`)??[];
     const exact=defs.find(definition=>definition.version===version);
