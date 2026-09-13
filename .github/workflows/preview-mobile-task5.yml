@@ -1,0 +1,97 @@
+name: Preview Mobile Task 5
+
+on:
+  push:
+    branches: [feat/source-foundation]
+    paths:
+      - .github/workflows/preview-mobile-task5.yml
+
+permissions:
+  contents: write
+
+jobs:
+  mobile-timeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/source-foundation
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+          pnpm install --frozen-lockfile
+      - name: RED - require mobile timeline touch hooks and target sizes
+        shell: bash
+        run: |
+          cat > lib/lyricforge/__tests__/timeline-mobile.test.ts <<'EOF'
+          import {readFileSync} from 'node:fs';
+          import {describe,expect,it} from 'vitest';
+          const timeline=readFileSync('components/editor/Timeline.tsx','utf8');
+          const css=readFileSync('app/globals.css','utf8');
+          describe('mobile timeline ergonomics',()=>{
+            it('exposes stable hooks for the scroll surface and both trim handles',()=>{
+              expect(timeline).toContain('data-timeline-scroller');
+              expect(timeline).toContain('data-clip-handle="start"');
+              expect(timeline).toContain('data-clip-handle="end"');
+            });
+            it('uses touch-sized clips and trim targets in portrait mode',()=>{
+              expect(css).toContain('.mode-phone-portrait .timeline-clip{top:4px;height:42px');
+              expect(css).toContain('.mode-phone-portrait [data-clip-handle]{width:18px');
+              expect(css).toContain('.mode-phone-portrait .timeline-toolbar{overflow-x:auto');
+            });
+          });
+          EOF
+          set +e
+          pnpm test -- --run lib/lyricforge/__tests__/timeline-mobile.test.ts 2>&1 | tee /tmp/red.log
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -ne 0
+          grep -q 'mobile timeline ergonomics' /tmp/red.log
+      - name: GREEN - add touch semantics and portrait timeline overrides
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('components/editor/Timeline.tsx')
+          s=p.read_text()
+          s=s.replace('<div className="timeline-scroll" ref={scroller}', '<div className="timeline-scroll" data-timeline-scroller ref={scroller}', 1)
+          s=s.replace('<div className="clip-handle left"', '<div data-clip-handle="start" className="clip-handle left"', 1)
+          s=s.replace('<div className="clip-handle right"', '<div data-clip-handle="end" className="clip-handle right"', 1)
+          if 'data-timeline-scroller' not in s or 'data-clip-handle="start"' not in s or 'data-clip-handle="end"' not in s:
+              raise SystemExit('Timeline touch hooks were not inserted')
+          p.write_text(s)
+          PY
+          cat >> app/globals.css <<'EOF'
+
+          @media (max-width:760px) and (orientation:portrait){
+            .mode-phone-portrait .timeline-toolbar{overflow-x:auto;overflow-y:hidden;justify-content:flex-start;white-space:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:4px 7px;height:44px;min-height:44px}
+            .mode-phone-portrait .timeline-toolbar::-webkit-scrollbar{display:none}
+            .mode-phone-portrait .timeline-tools,.mode-phone-portrait .timeline-controls{flex-shrink:0}
+            .mode-phone-portrait .timeline-toolbar .icon-button{width:36px;height:36px;min-width:36px}
+            .mode-phone-portrait .timeline-clip{top:4px;height:42px;user-select:none;-webkit-user-select:none}
+            .mode-phone-portrait [data-clip-handle]{width:18px;background:transparent}
+            .mode-phone-portrait [data-clip-handle]::before{content:'';position:absolute;top:7px;bottom:7px;width:4px;border-radius:3px;background:#f2b66d55}
+            .mode-phone-portrait [data-clip-handle="start"]::before{left:2px}
+            .mode-phone-portrait [data-clip-handle="end"]::before{right:2px}
+            .mode-phone-portrait .track-name>input{font-size:12px}
+            .mode-phone-portrait .track-mini-tools button,.mode-phone-portrait .track-switches button{min-width:18px;min-height:18px}
+            .mode-phone-portrait [data-timeline-scroller]{touch-action:pan-x pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+          }
+          EOF
+      - name: Verify Task 5
+        run: |
+          pnpm test -- --run lib/lyricforge/__tests__/timeline-mobile.test.ts
+          pnpm test -- --run
+          pnpm run test:legacy
+          pnpm run build
+          grep -q 'data-timeline-scroller' components/editor/Timeline.tsx
+          grep -q 'data-clip-handle="start"' components/editor/Timeline.tsx
+          grep -q 'data-clip-handle="end"' components/editor/Timeline.tsx
+      - name: Commit Task 5
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add components/editor/Timeline.tsx app/globals.css lib/lyricforge/__tests__/timeline-mobile.test.ts
+          git commit -m 'feat: improve mobile timeline touch ergonomics'
+          git push origin HEAD:feat/source-foundation
