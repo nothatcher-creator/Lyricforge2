@@ -4,6 +4,7 @@ import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
 import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import {TooltipProvider} from '@/components/ui/tooltip';
 import {createProject,makeClip,makeTrack} from '@/lib/lyricforge/model';
+import {creativeRegistry} from '@/lib/lyricforge/creative-registry';
 import {store} from '@/lib/lyricforge/store';
 import CreativeInspector from '../CreativeInspector';
 
@@ -33,6 +34,8 @@ describe('CreativeInspector',()=>{
     expect(screen.getByLabelText('Intro animation')).toBeTruthy();
     expect(screen.getByLabelText('Loop animation')).toBeTruthy();
     expect(screen.getByLabelText('Outro animation')).toBeTruthy();
+    expect(screen.getByLabelText('Effect scope')).toBeTruthy();
+    expect(screen.getByLabelText('Clip effect preset')).toBeTruthy();
     expect(screen.getByRole('button',{name:'Add clip effect'})).toBeTruthy();
   });
 
@@ -47,8 +50,34 @@ describe('CreativeInspector',()=>{
   it('shows master effects with no clip and changes only the master stack',()=>{
     renderInspector(null);
     expect(screen.getByText('Master effects')).toBeTruthy();
+    expect(screen.getByLabelText('Master effect preset')).toBeTruthy();
     fireEvent.click(screen.getByRole('button',{name:'Add master effect'}));
     expect(store.project.masterEffects).toHaveLength(1);
     expect(store.project.clips.every(clip=>clip.effects.length===0)).toBe(true);
+  });
+
+  it('renders trusted effect params and keyframe actions only for keyframeable params',()=>{
+    act(()=>{
+      store.addClipEffect('text-a','builtin.effect.glow','1.0.0');
+      store.addClipEffect('text-a','builtin.effect.grain','1.0.0');
+    });
+    renderInspector('text-a','effects');
+    expect(screen.getByLabelText('Glow radius')).toBeTruthy();
+    expect(screen.getByLabelText('Glow intensity')).toBeTruthy();
+    expect(screen.getByRole('button',{name:'Add Glow intensity keyframe'})).toBeTruthy();
+    expect(screen.getByLabelText('Grain size')).toBeTruthy();
+    expect(screen.queryByRole('button',{name:'Add Grain size keyframe'})).toBeNull();
+  });
+
+  it('renders trusted animation params and preserves explicit disabled canonical roles',()=>{
+    const definition=creativeRegistry.resolve('text-animation','builtin.animation.fade','1.0.0')!;
+    act(()=>store.setAnimation('text-a','intro',{
+      assetId:definition.id,version:definition.version,role:'intro',enabled:false,
+      params:creativeRegistry.normalizeParams(definition,{}),keyframes:{},
+    }));
+    renderInspector('text-a','animations');
+    expect(screen.getByLabelText('Fade duration')).toBeTruthy();
+    expect(screen.getByRole('button',{name:'Add Fade duration keyframe'})).toBeTruthy();
+    expect(screen.getByLabelText('Disable Intro role')).toHaveAttribute('data-state','checked');
   });
 });
