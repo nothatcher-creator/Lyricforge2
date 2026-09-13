@@ -1,0 +1,69 @@
+name: Inspector integration one-shot
+
+on:
+  push:
+    branches: [feat/creative-runtime-inline]
+    paths:
+      - .github/workflows/inspector-integration-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-runtime-inline
+          fetch-depth: 0
+      - name: Integrate creative controls
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          inspector_path=Path('components/editor/Inspector.tsx')
+          source=inspector_path.read_text()
+
+          import_needle="import {Range,NumberField,ColorField,Choice,Toggle,Section,FontPicker,IconButton} from './Controls';\n"
+          import_replacement=import_needle+"import CreativeInspector from './CreativeInspector';\n"
+          if "import CreativeInspector from './CreativeInspector';" not in source:
+              if import_needle not in source:
+                  raise SystemExit('Inspector import needle not found')
+              source=source.replace(import_needle,import_replacement,1)
+
+          tabs_needle='<TabsList className="panel-tabs"><TabsTrigger value="style">Style</TabsTrigger><TabsTrigger value="motion">Motion</TabsTrigger><TabsTrigger value="layout">Layout</TabsTrigger></TabsList>'
+          tabs_replacement='<TabsList className="panel-tabs"><TabsTrigger value="style">Style</TabsTrigger><TabsTrigger value="motion">Motion</TabsTrigger><TabsTrigger value="effects">Effects</TabsTrigger><TabsTrigger value="layout">Layout</TabsTrigger></TabsList>'
+          if tabs_needle not in source and tabs_replacement not in source:
+              raise SystemExit('Inspector tabs needle not found')
+          source=source.replace(tabs_needle,tabs_replacement,1)
+
+          motion='''<TabsContent value="motion">{textMode?<>{global?<Section title="Animation" open>{(['entrance','idle','emphasis','exit'] as const).map(prop=><label className="labeled-choice" key={prop}><span>{prop[0].toUpperCase()+prop.slice(1)}</span><Choice label={`${prop} animation`} value={s[prop]} onChange={v=>patch({[prop]:v})} options={prop==='idle'||prop==='emphasis'?['None','Pop','Bounce','Shake','Pulse','Flicker','Glitch','Neon Flicker','Wave','Float']:ANIMATIONS}/></label>)}{range('animationDuration','Duration',50,4000,10,' ms')}{range('delay','Delay',0,3000,10,' ms')}{range('intensity','Intensity',0,2,.05)}<Choice label="Animation easing" value={s.easing} onChange={easing=>patch({easing:easing as Style['easing']})} options={['linear','ease-in','ease-out','ease-in-out']}/><Choice label="Animation direction" value={String(s.direction)} onChange={v=>patch({direction:+v})} options={[{label:'Forward',value:'1'},{label:'Reverse',value:'-1'}]}/></Section>:<><CreativeInspector clipId={c?.id??null} mode="animations"/><Section title="Emphasis" open><label className="labeled-choice"><span>Emphasis</span><Choice label="emphasis animation" value={s.emphasis} onChange={v=>patch({emphasis:v})} options={['None','Pop','Bounce','Shake','Pulse','Flicker','Glitch','Neon Flicker','Wave','Float']}/></label>{range('animationDuration','Emphasis duration',50,4000,10,' ms')}{range('delay','Emphasis delay',0,3000,10,' ms')}{range('intensity','Emphasis intensity',0,2,.05)}<Choice label="Emphasis easing" value={s.easing} onChange={easing=>patch({easing:easing as Style['easing']})} options={['linear','ease-in','ease-out','ease-in-out']}/><Choice label="Emphasis direction" value={String(s.direction)} onChange={v=>patch({direction:+v})} options={[{label:'Forward',value:'1'},{label:'Reverse',value:'-1'}]}/></Section></>}</>:<p className="hint">Use keyframes below to animate this layer.</p>}<Section title="Keyframes" open>'''
+          source,count=re.subn(r'<TabsContent value="motion">.*?<Section title="Keyframes" open>',motion,source,count=1,flags=re.S)
+          if count!=1:
+              raise SystemExit(f'Expected one Motion replacement, got {count}')
+
+          effects='<TabsContent value="effects"><CreativeInspector clipId={c?.id??null} mode="effects"/></TabsContent>'
+          if effects not in source:
+              layout='<TabsContent value="layout">'
+              if layout not in source:
+                  raise SystemExit('Layout tab content needle not found')
+              source=source.replace(layout,effects+layout,1)
+
+          inspector_path.write_text(source)
+
+          css_path=Path('app/globals.css')
+          css=css_path.read_text()
+          sentinel='/* creative-inspector-runtime */'
+          if sentinel not in css:
+              css += '''\n\n/* creative-inspector-runtime */\n.creative-inspector{display:flex;flex-direction:column;gap:10px;min-width:0}.creative-animation-role{display:grid;gap:8px;padding:9px 0;border-bottom:1px solid #34353c}.creative-animation-role:last-child{border-bottom:0}.creative-param-list{display:grid;gap:8px;min-width:0}.creative-param{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:7px;align-items:end;min-width:0}.creative-param>:only-child{grid-column:1/-1}.creative-keyframe-button{min-width:36px;min-height:36px;border:1px solid #444650;border-radius:6px;background:#2b2c32;color:#d9b47f}.creative-effect-card{display:grid;gap:8px;padding:10px;border:1px solid #3a3b43;border-radius:8px;background:#25262b;min-width:0}.creative-effect-row{display:grid;gap:8px;min-width:0}.creative-effect-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.creative-effect-actions button{min-height:36px;border:1px solid #41424a;border-radius:6px;background:#2d2e34;color:#c9cad3;padding:7px}.creative-effect-details{min-width:0}.creative-effect-details summary{min-height:36px;display:flex;align-items:center;color:#c8c9d2}.creative-add-effect{min-height:36px}.creative-inspector .inspector-section{min-width:0}\n@media(max-width:760px){.creative-inspector{gap:8px}.creative-effect-card{padding:9px}.creative-effect-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.creative-effect-actions button,.creative-keyframe-button,.creative-add-effect{min-height:36px}.creative-param{grid-template-columns:minmax(0,1fr) 40px}.creative-keyframe-button{min-width:40px}}\n'''
+              css_path.write_text(css)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add components/editor/Inspector.tsx app/globals.css
+          git diff --cached --check
+          git commit -m "feat: integrate creative inspector controls"
+          git push origin HEAD:feat/creative-runtime-inline
