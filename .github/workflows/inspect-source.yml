@@ -110,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f source/dist/client/index.html
-          test -f source/dist/client/_next/static/chunks/index-*.js
+          compgen -G 'source/dist/client/_next/static/chunks/index-*.js' > /dev/null
           test -f source/dist/client/workers/analysis.js
           test -f source/dist/client/workers/transcription.js
           grep -q 'LyricForge' source/dist/client/index.html
@@ -118,12 +118,12 @@ jobs:
           grep -q '/Lyricforge2/_next/' source/dist/client/index.html
           grep -q '/Lyricforge2/workers/' source/dist/client/workers/transcription.js
           test ! -d source/dist/client/Lyricforge2
-          ! grep -RqsE '(["'"'])/(workers/|favicon\.svg)' source/dist/client --include='*.html' --include='*.js'
 
           python3 - <<'PY'
           from pathlib import Path
           from html.parser import HTMLParser
           from urllib.parse import urlsplit
+          import re
 
           root = Path('source/dist/client')
           html = (root / 'index.html').read_text()
@@ -148,6 +148,18 @@ jobs:
                   missing.append((url, str(local)))
           if missing:
               raise SystemExit('Missing generated assets: '+repr(missing))
+
+          bad=[]
+          root_relative=re.compile(r'''["']/((?:workers/)|(?:favicon\.svg))''')
+          for path in root.rglob('*'):
+              if path.suffix not in {'.html','.js','.mjs'}:
+                  continue
+              text=path.read_text(errors='ignore')
+              if root_relative.search(text):
+                  bad.append(str(path.relative_to(root)))
+          if bad:
+              raise SystemExit('Unprefixed project asset URLs remain in: '+repr(bad))
+
           print('Validated', len(p.urls), 'HTML asset references.')
           PY
 
