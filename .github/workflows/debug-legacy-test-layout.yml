@@ -16,10 +16,19 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: feat/source-foundation
-      - run: |
+      - name: Install with pinned pnpm
+        shell: bash
+        run: |
+          set -euo pipefail
           corepack enable
-          corepack prepare pnpm@11.25.0 --activate
-          pnpm install --frozen-lockfile
+          for attempt in 1 2 3; do
+            if corepack prepare pnpm@11.25.0 --activate && pnpm install --frozen-lockfile; then
+              exit 0
+            fi
+            echo "pnpm setup attempt $attempt failed; retrying"
+            sleep 3
+          done
+          exit 1
       - name: Inspect esbuild selection and output tree
         shell: bash
         run: |
