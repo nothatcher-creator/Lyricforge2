@@ -53,6 +53,8 @@ export class CreativeRegistry{
   private readonly builtins:readonly CreativeDefinition[];
   private installed:readonly CreativeDefinition[]=[];
   private readonly byKey=new Map<string,CreativeDefinition[]>();
+  private readonly listeners=new Set<()=>void>();
+  private revision=0;
 
   constructor(definitions:readonly CreativeDefinition[]){
     this.builtins=definitions.map(definition=>cloneDefinition(definition));
@@ -60,6 +62,10 @@ export class CreativeRegistry{
   }
 
   get definitions():readonly CreativeDefinition[]{return [...this.builtins,...this.installed];}
+  subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
+  getSnapshot=()=>this.revision;
+
+  private emit(){this.revision++;this.listeners.forEach(listener=>listener());}
 
   private reindex(){
     this.byKey.clear();
@@ -88,10 +94,20 @@ export class CreativeRegistry{
     }
     this.installed=installed;
     this.reindex();
+    this.emit();
   }
 
   all(type:CreativeDefinition['type']):readonly CreativeDefinition[]{
     return this.definitions.filter(definition=>definition.type===type);
+  }
+
+  preferred(type:CreativeDefinition['type']):readonly CreativeDefinition[]{
+    const seen=new Set<string>();
+    return this.all(type).filter(definition=>{
+      if(seen.has(definition.id))return false;
+      seen.add(definition.id);
+      return true;
+    });
   }
 
   resolve(type:CreativeDefinition['type'],id:string,version:string):CreativeDefinition|null{
