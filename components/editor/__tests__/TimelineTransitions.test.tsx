@@ -2,7 +2,7 @@
 import React from 'react';
 import {act,cleanup,fireEvent,render,screen} from '@testing-library/react';
 import {afterEach,describe,expect,it} from 'vitest';
-import {createProject,makeClip,makeTrack,type Clip,type Track} from '@/lib/lyricforge/model';
+import {createProject,makeClip,makeTrack,type Track} from '@/lib/lyricforge/model';
 import {store} from '@/lib/lyricforge/store';
 import TimelineTransitions from '../TimelineTransitions';
 
@@ -38,6 +38,20 @@ describe('TimelineTransitions',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Add transition between A and B'}));
     expect(screen.queryByRole('button',{name:'Add transition between A and B'})).toBeNull();
     expect(screen.getByRole('button',{name:/Crossfade transition between A and B/})).toBeTruthy();
+  });
+
+  it('drags requested duration symmetrically and records the gesture as one undo step',()=>{
+    const {project,track,a,b}=textPair();
+    act(()=>{store.setProject(project);store.addTransition(a.id,b.id);});
+    const view=renderLane(track,100);
+    const handle=view.container.querySelector<HTMLElement>('[data-transition-handle]');
+    expect(handle).toBeTruthy();
+    fireEvent.pointerDown(handle!,{clientX:100,pointerId:1,button:0});
+    fireEvent.pointerMove(window,{clientX:125,pointerId:1});
+    fireEvent.pointerUp(window,{clientX:125,pointerId:1});
+    expect(store.project.transitions[0].durationMs).toBe(1500);
+    act(()=>store.undo());
+    expect(store.project.transitions[0].durationMs).toBe(1000);
   });
 
   it('does not offer invalid, occupied, audio, cross-track, overlapping, gapped, or non-adjacent cuts',()=>{
