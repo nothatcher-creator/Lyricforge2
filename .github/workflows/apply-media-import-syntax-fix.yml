@@ -1,0 +1,38 @@
+name: Apply Media Import Syntax Fix
+
+on:
+  push:
+    branches: [fix/media-import-preserve-layers]
+    paths: [.github/workflows/apply-media-import-syntax-fix.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Add missing try-block brace
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('components/editor/Editor.tsx')
+          text=path.read_text()
+          old="added as a background layer`);}}catch(e)"
+          new="added as a background layer`);}}}catch(e)"
+          if text.count(old)!=1:
+              raise SystemExit(f'expected one syntax anchor, found {text.count(old)}')
+          path.write_text(text.replace(old,new,1))
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add components/editor/Editor.tsx
+          git diff --cached --check
+          git commit -m "fix: close media import branch before catch"
+          git push origin HEAD:fix/media-import-preserve-layers
