@@ -57,6 +57,14 @@ export function normalizeAssetRef(value: AssetRef): AssetRef {
   return { id, type: value.type, version };
 }
 
+export const CATALOG_FONT_FAMILY_PREFIX='LyricForge Catalog ';
+export function catalogFontFamilyName(id:string,version:string,displayFamily:string){
+  const ref=normalizeAssetRef({id,type:'font',version});
+  const friendly=displayFamily.trim();
+  if(!friendly)throw new Error('Catalog font display family is required');
+  return `${CATALOG_FONT_FAMILY_PREFIX}${friendly} [${ref.id}@${ref.version}]`;
+}
+
 const CATALOG_FONT_FAMILY=/^LyricForge Catalog .+ \[([a-z0-9][a-z0-9._-]*)@([^\]\s]+)\]$/i;
 export function parseCatalogFontFamily(value:unknown):AssetRef|null{
   if(typeof value!=='string')return null;
