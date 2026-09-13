@@ -25,11 +25,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf site-src _site
-          mkdir -p site-src _site
+          rm -rf site-src
+          mkdir site-src
           unzip -q LyricForge-v2-source.zip -d site-src
-
-          # If the zip contains one wrapper folder, work from inside it.
           shopt -s dotglob nullglob
           entries=(site-src/*)
           if [ ${#entries[@]} -eq 1 ] && [ -d "${entries[0]}" ]; then
@@ -37,53 +35,143 @@ jobs:
             rmdir "${entries[0]}" 2>/dev/null || true
           fi
 
-          echo "Extracted files:"
-          find site-src -maxdepth 2 -type f | sort | head -200
-
-      - name: Build or prepare site
+      - name: Adapt LyricForge for GitHub Pages
         shell: bash
         run: |
           set -euo pipefail
-          cd site-src
 
-          if [ -f package.json ]; then
-            echo "package.json detected; installing dependencies"
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
+          # This helper belongs to the original server-hosted ChatGPT runtime.
+          # The editor itself is browser-side and does not import it.
+          rm -f site-src/app/chatgpt-auth.ts
 
-            echo "Building app"
-            if npm run | grep -qE '^  build'; then
-              # Vite accepts --base; other tools may ignore/fail, so retry normally.
-              npm run build -- --base=/Lyricforge2/ || npm run build
-            else
-              echo "No build script found; treating source as static"
-            fi
+          cat > site-src/next.config.ts <<'EOF'
+          import type { NextConfig } from "next";
 
-            for dir in dist build out public; do
-              if [ -f "$dir/index.html" ]; then
-                cp -a "$dir"/. ../_site/
-                break
-              fi
-            done
+          const nextConfig: NextConfig = {
+            output: "export",
+            assetPrefix: "/Lyricforge2",
+            trailingSlash: true,
+          };
+
+          export default nextConfig;
+          EOF
+
+          # GitHub Pages is static; omit the original Cloudflare/OpenAI hosting plugins.
+          cat > site-src/vite.config.ts <<'EOF'
+          import vinext from "vinext";
+          import { defineConfig } from "vite";
+
+          export default defineConfig({
+            plugins: [vinext({ prerender: { routes: "*" } })],
+          });
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page = Path('site-src/app/page.tsx')
+          page_text = page.read_text()
+          if 'export const dynamic' not in page_text:
+              page.write_text('export const dynamic = "force-static";\n' + page_text)
+
+          roots = [Path('site-src/app'), Path('site-src/components'), Path('site-src/lib')]
+          for root in roots:
+              for path in root.rglob('*'):
+                  if path.suffix not in {'.ts', '.tsx'}:
+                      continue
+                  text = path.read_text()
+                  text = text.replace('"/favicon.svg"', '"/Lyricforge2/favicon.svg"')
+                  text = text.replace("'/favicon.svg'", "'/Lyricforge2/favicon.svg'")
+                  text = text.replace("'/workers/", "'/Lyricforge2/workers/")
+                  text = text.replace('"/workers/', '"/Lyricforge2/workers/')
+                  path.write_text(text)
+
+          worker = Path('site-src/public/workers/transcription.js')
+          if worker.exists():
+              text = worker.read_text()
+              text = text.replace('wasmPaths="/workers/"', 'wasmPaths="/Lyricforge2/workers/"')
+              worker.write_text(text)
+          PY
+
+          if grep -RInE 'next/headers|headers\(|cookies\(|redirect\(' site-src/app site-src/components site-src/lib --include='*.ts' --include='*.tsx'; then
+            echo 'ERROR: server-only dynamic APIs remain in the static Pages build.'
+            exit 1
           fi
 
-          # Static fallback: use the directory containing the first index.html.
-          if [ ! -f ../_site/index.html ]; then
-            index_path="$(find . -type f -name index.html -print -quit)"
-            if [ -z "$index_path" ]; then
-              echo "ERROR: No deployable index.html was found after extraction/build."
-              exit 1
-            fi
-            index_dir="$(dirname "$index_path")"
-            cp -a "$index_dir"/. ../_site/
-          fi
+      - name: Install dependencies
+        working-directory: site-src
+        run: npm install
 
-          touch ../_site/.nojekyll
-          echo "Deploying these files:"
-          find ../_site -maxdepth 2 -type f | sort | head -200
+      - name: Build static LyricForge
+        working-directory: site-src
+        run: npm run build
+
+      - name: Normalize GitHub Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d site-src/dist/client/Lyricforge2/_next ]; then
+            rm -rf site-src/dist/client/_next
+            mv site-src/dist/client/Lyricforge2/_next site-src/dist/client/_next
+            rmdir site-src/dist/client/Lyricforge2
+          fi
+          touch site-src/dist/client/.nojekyll
+
+      - name: Verify deployable site
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f site-src/dist/client/index.html
+          compgen -G 'site-src/dist/client/_next/static/chunks/index-*.js' > /dev/null
+          test -f site-src/dist/client/workers/analysis.js
+          test -f site-src/dist/client/workers/transcription.js
+          grep -q 'LyricForge' site-src/dist/client/index.html
+          ! grep -q 'Cloudflare Local Explorer' site-src/dist/client/index.html
+          grep -q '/Lyricforge2/_next/' site-src/dist/client/index.html
+          grep -q '/Lyricforge2/workers/' site-src/dist/client/workers/transcription.js
+          test ! -d site-src/dist/client/Lyricforge2
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          from urllib.parse import urlsplit
+          import re
+
+          root = Path('site-src/dist/client')
+          html = (root / 'index.html').read_text()
+
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.urls=[]
+              def handle_starttag(self, tag, attrs):
+                  for k,v in attrs:
+                      if k in {'src','href'} and v:
+                          self.urls.append(v)
+
+          parser=Parser(); parser.feed(html)
+          prefix='/Lyricforge2/'
+          missing=[]
+          for url in parser.urls:
+              path=urlsplit(url).path
+              if path.startswith(prefix):
+                  local=root / path[len(prefix):]
+                  if not local.is_file():
+                      missing.append((url, str(local)))
+          if missing:
+              raise SystemExit('Missing generated assets: '+repr(missing))
+
+          bad=[]
+          unprefixed=re.compile(r'''["']/((?:workers/)|(?:favicon\.svg))''')
+          for path in root.rglob('*'):
+              if path.suffix not in {'.html','.js','.mjs'}:
+                  continue
+              if unprefixed.search(path.read_text(errors='ignore')):
+                  bad.append(str(path.relative_to(root)))
+          if bad:
+              raise SystemExit('Unprefixed project asset URLs remain in: '+repr(bad))
+
+          print('Validated', len(parser.urls), 'HTML asset references.')
+          PY
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -91,7 +179,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
+          path: site-src/dist/client
 
   deploy:
     environment:
