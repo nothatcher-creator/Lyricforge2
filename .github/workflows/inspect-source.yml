@@ -1,4 +1,4 @@
-name: Inspect LyricForge source
+name: Test LyricForge GitHub Pages build
 
 on:
   push:
@@ -8,10 +8,11 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  test-static-export:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
       - name: Extract source
         shell: bash
         run: |
@@ -25,20 +26,64 @@ jobs:
             mv "${entries[0]}"/* source/ 2>/dev/null || true
             rmdir "${entries[0]}" 2>/dev/null || true
           fi
-      - name: Show relevant config
+
+      - name: Adapt source for GitHub Pages
         shell: bash
         run: |
-          echo '=== package.json ==='
-          cat source/package.json
-          echo '\n=== next.config.ts ==='
-          cat source/next.config.ts
-          echo '\n=== vite.config.ts ==='
-          cat source/vite.config.ts
-          echo '\n=== app/page.tsx (first 220 lines) ==='
-          sed -n '1,220p' source/app/page.tsx
-      - name: Upload extracted source
+          set -euo pipefail
+          cat > source/next.config.ts <<'EOF'
+          import type { NextConfig } from "next";
+
+          const nextConfig: NextConfig = {
+            output: "export",
+            basePath: "/Lyricforge2",
+            assetPrefix: "/Lyricforge2",
+            trailingSlash: true,
+          };
+
+          export default nextConfig;
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          roots = [Path('source/app'), Path('source/components'), Path('source/lib')]
+          for root in roots:
+              for path in root.rglob('*'):
+                  if path.suffix not in {'.ts', '.tsx'}:
+                      continue
+                  text = path.read_text()
+                  text = text.replace('"/favicon.svg"', '"/Lyricforge2/favicon.svg"')
+                  text = text.replace("'/favicon.svg'", "'/Lyricforge2/favicon.svg'")
+                  text = text.replace("'/workers/", "'/Lyricforge2/workers/")
+                  text = text.replace('"/workers/', '"/Lyricforge2/workers/')
+                  path.write_text(text)
+          PY
+
+      - name: Install dependencies
+        working-directory: source
+        run: npm install
+
+      - name: Build static export
+        working-directory: source
+        run: npm run build
+
+      - name: Verify GitHub Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f source/dist/client/index.html
+          test -f source/dist/client/workers/analysis.js
+          test -f source/dist/client/workers/transcription.js
+          grep -q 'LyricForge' source/dist/client/index.html
+          ! grep -q 'Cloudflare Local Explorer' source/dist/client/index.html
+          grep -q '/Lyricforge2/' source/dist/client/index.html
+          ! grep -RqsE "['\"]/(workers/|favicon\.svg)" source/dist/client --include='*.html' --include='*.js'
+          echo 'Static export validation passed.'
+
+      - name: Upload tested static site
         uses: actions/upload-artifact@v4
         with:
-          name: lyricforge-extracted-source
-          path: source
+          name: lyricforge-pages-test
+          path: source/dist/client
           retention-days: 1
