@@ -1,0 +1,107 @@
+name: Preview Mobile Task 4 Final
+
+on:
+  push:
+    branches: [feat/source-foundation]
+    paths:
+      - .github/workflows/preview-mobile-task4-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  portrait-sheet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/source-foundation
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+          pnpm install --frozen-lockfile
+      - name: RED - require an isolated mobile sheet handle component
+        shell: bash
+        run: |
+          mkdir -p components/editor/__tests__
+          cat > components/editor/__tests__/Inspector.mobile.test.tsx <<'EOF'
+          // @vitest-environment jsdom
+          import React from 'react';
+          import {render} from '@testing-library/react';
+          import {describe,expect,it} from 'vitest';
+          import {MobileSheetHandle} from '../Inspector';
+          describe('portrait inspector',()=>{
+            it('renders the mobile bottom-sheet grab handle',()=>{
+              const {container}=render(<MobileSheetHandle/>);
+              expect(container.querySelector('.mobile-sheet-handle')).not.toBeNull();
+            });
+          });
+          EOF
+          set +e
+          pnpm test -- --run components/editor/__tests__/Inspector.mobile.test.tsx 2>&1 | tee /tmp/red.log
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -ne 0
+          grep -q 'MobileSheetHandle' /tmp/red.log
+      - name: GREEN - add handle and portrait bottom-sheet CSS
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('components/editor/Inspector.tsx')
+          s=p.read_text()
+          marker="export default function Inspector({onFontImport}:{onFontImport:()=>void})"
+          component="export function MobileSheetHandle(){return <div className=\"mobile-sheet-handle\" aria-hidden=\"true\"><span/></div>;}\n"
+          if 'export function MobileSheetHandle' not in s:
+              if marker not in s: raise SystemExit('Inspector function anchor not found')
+              s=s.replace(marker,component+marker,1)
+          old='return <aside className="inspector"><div className="panel-heading">'
+          new='return <aside className="inspector"><MobileSheetHandle/><div className="panel-heading">'
+          if '<MobileSheetHandle/>' not in s:
+              if old not in s: raise SystemExit('Inspector return anchor not found')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          cat >> app/globals.css <<'EOF'
+
+          /* LyricForge phone portrait workspace */
+          .mobile-sheet-handle{display:none;height:20px;align-items:center;justify-content:center;flex-shrink:0}.mobile-sheet-handle>span{width:42px;height:4px;border-radius:999px;background:#666872}.preview-inline-editor{position:absolute;z-index:12;box-sizing:border-box;min-height:44px;resize:none;border:2px solid #f2b66d;border-radius:8px;background:#17181bea;color:#fff;padding:8px 10px;text-align:center;line-height:1.25;box-shadow:0 8px 30px #0009,0 0 0 2px #0008;touch-action:manipulation;overflow:auto}
+          @media (max-width:760px) and (orientation:portrait){
+            .mode-phone-portrait{--timeline-height:31dvh}
+            .mode-phone-portrait .studio-header{height:52px;min-height:52px;padding:0 8px;gap:8px}
+            .mode-phone-portrait .brand{min-width:30px}.mode-phone-portrait .brand>span,.mode-phone-portrait .studio-word,.mode-phone-portrait .save-status,.mode-phone-portrait .history-controls,.mode-phone-portrait .header-divider{display:none!important}
+            .mode-phone-portrait .brand img{width:28px;height:28px}.mode-phone-portrait .project-heading{flex:1;border-left:0;padding-left:0;min-width:0}.mode-phone-portrait .project-menu{max-width:100%;font-size:12px}.mode-phone-portrait .header-actions{gap:4px;margin-left:0}
+            .mode-phone-portrait .save-button{display:flex;width:42px;height:42px;min-height:42px;padding:0;justify-content:center}.mode-phone-portrait .save-button span,.mode-phone-portrait .export-button span{display:none}.mode-phone-portrait .export-button{width:42px;height:42px;min-height:42px;padding:0}
+            .mode-phone-portrait .workflow-strip{display:none}
+            .mode-phone-portrait .workbench,.mode-phone-portrait.left-collapsed .workbench,.mode-phone-portrait.right-collapsed .workbench,.mode-phone-portrait.left-collapsed.right-collapsed .workbench{position:relative;display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr) 58px!important;overflow:hidden}
+            .mode-phone-portrait .center-column{grid-column:1;grid-row:1;min-width:0}
+            .mode-phone-portrait .tool-rail{position:relative;grid-column:1;grid-row:2;z-index:42;width:100%;height:58px;min-height:58px;display:flex;flex-direction:row;align-items:center;padding:3px 5px;border-right:0;border-top:1px solid #34353d;overflow:hidden}
+            .mode-phone-portrait .tool-rail-tabs{display:flex!important;flex-direction:row!important;align-items:center!important;gap:3px!important;width:100%!important;height:52px!important;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}.mode-phone-portrait .tool-rail-tabs::-webkit-scrollbar{display:none}
+            .mode-phone-portrait .tool-rail-tab{width:56px;min-width:56px;height:50px!important;min-height:50px;gap:3px!important;font-size:9px!important}.mode-phone-portrait .tool-rail-tab[data-state=active]:before{left:14px;right:14px;top:auto;bottom:-3px;width:auto;height:2px}.mode-phone-portrait .rail-bottom{display:none}
+            .mode-phone-portrait .library-panel{display:block;position:absolute;left:8px;right:8px;top:auto;bottom:58px;width:auto;height:min(55dvh,520px);z-index:46;border:1px solid #3b3c43;border-radius:18px 18px 0 0;box-shadow:0 -18px 55px #000b;overflow:hidden;transform:translateY(0);transition:transform .2s ease,visibility .2s ease}.mode-phone-portrait.left-collapsed .library-panel{display:block;transform:translateY(calc(100% + 70px));visibility:hidden;pointer-events:none}
+            .mode-phone-portrait .inspector-container{display:block;position:absolute;left:8px;right:8px;top:auto;bottom:58px;width:auto;height:48dvh;min-height:280px;z-index:50;border:1px solid #414249;border-bottom:0;border-radius:18px 18px 0 0;background:#222328;box-shadow:0 -20px 60px #000c;overflow:hidden;transform:translateY(0);transition:transform .2s ease,visibility .2s ease;padding-bottom:env(safe-area-inset-bottom)}
+            .mode-phone-portrait.right-collapsed .inspector-container{display:block;transform:translateY(calc(100% + 70px));visibility:hidden;pointer-events:none}
+            .mode-phone-portrait .mobile-sheet-handle{display:flex}.mode-phone-portrait .inspector .panel-heading{min-height:44px;padding:8px 16px}.mode-phone-portrait .inspector-scroll{overscroll-behavior:contain}.mode-phone-portrait .panel-resizer{display:none}
+            .mode-phone-portrait .viewer-toolbar{height:40px;min-height:40px;padding:0 4px}.mode-phone-portrait .viewer-toolbar .icon-button{width:42px;height:42px}.mode-phone-portrait .viewer-stage{padding:8px 8px 28px}.mode-phone-portrait .canvas-zoom{bottom:2px}
+            .mode-phone-portrait .transport{height:50px;min-height:50px;padding:0 4px}.mode-phone-portrait .transport-center .icon-button{min-width:34px}.mode-phone-portrait .transport-right{display:none}
+            .mode-phone-portrait .timeline-wrapper{height:31dvh;min-height:170px}.mode-phone-portrait .timeline-resizer{display:none}
+          }
+          EOF
+      - name: Verify Task 4
+        run: |
+          pnpm test -- --run components/editor/__tests__/Inspector.mobile.test.tsx
+          pnpm test -- --run
+          pnpm run test:legacy
+          pnpm run build
+          grep -q 'export function MobileSheetHandle' components/editor/Inspector.tsx
+          grep -q '<MobileSheetHandle/>' components/editor/Inspector.tsx
+          grep -q '@media (max-width:760px) and (orientation:portrait)' app/globals.css
+          grep -q 'preview-inline-editor' app/globals.css
+      - name: Commit Task 4
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add components/editor/Inspector.tsx app/globals.css components/editor/__tests__/Inspector.mobile.test.tsx
+          git commit -m 'feat: add portrait inspector bottom sheet'
+          git push origin HEAD:feat/source-foundation
