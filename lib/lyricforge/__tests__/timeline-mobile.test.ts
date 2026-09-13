@@ -14,6 +14,6 @@ describe('mobile timeline ergonomics',()=>{
     expect(css).toContain('.mode-phone-portrait .timeline-clip{top:4px;height:42px');
     expect(css).toContain('.mode-phone-portrait [data-clip-handle]{width:18px');
     expect(css).toContain('.mode-phone-portrait .timeline-toolbar{overflow-x:auto');
-    expect(css).toMatch(/\[data-transition-handle\]\{[^}]*min-height:\s*36px/s);
+    expect(css).toMatch(/\[data-transition-handle\]\{[^}]*min-height:\s*36px/);
   });
 });
