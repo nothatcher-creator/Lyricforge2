@@ -44,6 +44,17 @@ jobs:
           export default nextConfig;
           EOF
 
+          # The source archive includes Cloudflare/OpenAI hosting plugins for its
+          # original runtime. GitHub Pages is static, so use only vinext here.
+          cat > source/vite.config.ts <<'EOF'
+          import vinext from "vinext";
+          import { defineConfig } from "vite";
+
+          export default defineConfig({
+            plugins: [vinext()],
+          });
+          EOF
+
           python3 - <<'PY'
           from pathlib import Path
 
@@ -72,6 +83,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo 'Exported files:'
+          find source/dist/client -maxdepth 2 -type f | sort | head -100 || true
           test -f source/dist/client/index.html
           test -f source/dist/client/workers/analysis.js
           test -f source/dist/client/workers/transcription.js
@@ -82,6 +95,7 @@ jobs:
           echo 'Static export validation passed.'
 
       - name: Upload tested static site
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lyricforge-pages-test
