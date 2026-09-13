@@ -25,7 +25,7 @@ This phase must provide:
 - Stable creative asset IDs and versions in saved project data.
 - One shared runtime contract used by interactive preview and export.
 - Low/high preview quality modes plus full export quality.
-- Backward compatibility for current LyricForge animation/style fields.
+- Backward compatibility for current LyricForge animation/style fields and existing legacy effect clips.
 - Clear recovery when a referenced creative asset is missing or incompatible.
 - Safe failure behavior when a single effect or transition cannot render.
 
@@ -59,7 +59,7 @@ Track-level effects and cross-track transitions may be added later, but this pha
 
 ## 5. High-level Architecture
 
-The recommended architecture is a trusted registry plus a unified render pipeline.
+The architecture is a trusted registry plus a unified render pipeline.
 
 The project file stores creative asset references, versions, user parameters, enabled state, ordering, and keyframes. A built-in registry maps those references to trusted runtime implementations. The renderer asks a pure evaluation layer to resolve the creative state for the current project time. The same renderer is used by preview and export, preserving visual parity.
 
@@ -107,13 +107,15 @@ Each registered definition must expose:
 - Quality capabilities or degradation rules.
 - Trusted runtime implementation identifier or function binding.
 
-The registry API should support:
+The registry API must support:
 
 - Exact lookup by asset type, ID, and version.
-- Compatibility lookup when a project requests a supported older version.
+- Explicit compatibility aliases for older versions when the implementation guarantees compatible behavior.
 - Parameter normalization against defaults/ranges.
 - Target compatibility checks.
 - Capability checks for preview/export quality tiers.
+
+Resolution is exact-version first. The registry must not silently substitute a different semantic version merely because it appears newer; fallback is allowed only through an explicitly declared compatibility mapping.
 
 The runtime must never execute code supplied by project JSON or future catalog manifests. Future downloaded catalog entries may reference trusted runtime IDs and supply declarative parameters/assets only.
 
@@ -121,19 +123,25 @@ The runtime must never execute code supplied by project JSON or future catalog m
 
 The existing creative asset reference types are the foundation and should be extended rather than replaced.
 
-### 7.1 Parameter values
+### 7.1 Parameter values and keyframes
 
 Basic parameter values remain serializable primitives. Keyframed parameters are represented separately so simple instances stay compact.
 
-A keyframed parameter needs:
+A keyframed parameter stores:
 
 - Parameter key.
 - Ordered keyframes.
-- Each keyframe time or normalized position.
+- Each keyframe `timeMs`.
 - Value.
 - Easing/interpolation mode.
 
-Times for clip-scoped effects and text animations are interpreted relative to the clip unless explicitly defined otherwise. Master-effect keyframes use project time.
+Time semantics are singular and explicit:
+
+- Clip effect keyframe `timeMs` is relative to the clip start.
+- Text animation parameter keyframe `timeMs` is relative to that animation role's start window.
+- Master-effect keyframe `timeMs` is project time.
+
+Keyframes outside their valid scope are clamped during runtime normalization, not allowed to read unrelated project time implicitly.
 
 ### 7.2 Animation instances
 
@@ -180,18 +188,21 @@ Each transition stores:
 - `version`
 - `outgoingItemId`
 - `incomingItemId`
-- `durationMs`
+- requested `durationMs`
 - `easing`
 - `params`
-- optional parameter keyframes where the preset supports them
+
+Transition parameters are not independently keyframed in this phase. Every transition already receives normalized transition progress from 0 to 1, and its preset may derive motion/intensity from that progress.
 
 A transition is valid in this phase only when both clips:
 
 - Exist.
-- Are visual/compatible clip kinds.
+- Are one of the supported visual kinds: `lyrics`, `text`, `image`, `video`, or `visualizer`.
 - Belong to the same track.
-- Are adjacent in time/order for that track.
-- Touch at a cut boundary or are within the project’s accepted cut tolerance.
+- Are adjacent in canonical same-track order.
+- Meet at the same cut within a fixed 1 ms normalization tolerance: `abs(outgoing.end - incoming.start) <= 1`.
+
+A larger gap or a physical clip overlap does not form a transition boundary in this phase. The editor may offer snapping to make a valid cut, but the runtime does not guess.
 
 Manual overlap is not required.
 
@@ -209,6 +220,8 @@ Clip data gains:
 - Intro/Loop/Outro animation instances for text-capable clips.
 - Ordered clip effect stack for supported visual clips.
 
+Existing `kind: 'effect'` clips remain valid legacy timeline/render objects. They are not silently converted into new `EffectInstance` stack entries in this phase, and the new runtime must not remove their current behavior.
+
 ## 8. Text Animation Runtime
 
 Text animation uses the approved Intro / Loop / Outro model.
@@ -217,9 +230,9 @@ Text animation uses the approved Intro / Loop / Outro model.
 
 - **Intro** evaluates from clip entry over its configured duration and delay.
 - **Loop** evaluates over the active interior of the clip. Loop behavior may be periodic, oscillating, beat-driven, or continuously time-based depending on the preset.
-- **Outro** evaluates backward from clip end over its configured duration and delay/offset semantics.
+- **Outro** evaluates backward from clip end over its configured duration and configured offset/delay semantics defined by that preset schema.
 
-When Intro and Outro windows overlap on a very short clip, both remain defined. Their transform contributions are combined using the preset composition rules rather than allowing one to erase the other.
+When Intro and Outro windows overlap on a very short clip, both remain defined. Their transform contributions are combined using the standard resolved-state composition rules rather than allowing one to erase the other.
 
 ### 8.2 Resolved animation output
 
@@ -269,9 +282,9 @@ Loop presets:
 
 Presets that cannot achieve acceptable preview/export parity in the existing canvas pipeline should be deferred rather than implemented as preview-only tricks.
 
-## 9. Legacy Animation Compatibility
+## 9. Legacy Animation and Effect Compatibility
 
-Current LyricForge projects contain animation-related style fields such as entrance, idle, exit, emphasis, duration, intensity, delay, direction, and easing.
+Current LyricForge projects contain animation-related style fields such as entrance, idle, exit, emphasis, duration, intensity, delay, direction, and easing. They may also contain legacy `kind: 'effect'` clips.
 
 This phase must preserve them.
 
@@ -283,6 +296,7 @@ Compatibility strategy:
 4. Existing saved files do not need to be destructively rewritten merely to open.
 5. When the user edits/re-saves creative animation settings, the canonical new representation may be written while preserving unrelated project fields.
 6. Legacy emphasis behavior may remain a renderer/style compatibility path until an equivalent dedicated role is required; it is not promoted to a fourth new animation slot in this phase.
+7. Legacy effect clips keep their existing render semantics and are not auto-promoted into clip/master stacks.
 
 The visual baseline requirement is that a previously working project should render the same, within normal canvas/font tolerance, before the user changes its creative settings.
 
@@ -381,9 +395,11 @@ Transitions are explicit objects between adjacent compatible clips on the same t
 
 ### 12.1 Centered virtual overlap
 
-If outgoing clip A ends at cut time `C` and incoming clip B starts at `C`, a transition with duration `D` evaluates over:
+If outgoing clip A ends at cut time `C` and incoming clip B starts at `C`, a transition with requested duration `D` evaluates over:
 
-`[C - D/2, C + D/2]`
+`[C - D_eff/2, C + D_eff/2]`
+
+where `D_eff` is the runtime-clamped effective duration.
 
 This is a virtual overlap. The timeline clips do not need to be physically overlapped.
 
@@ -391,22 +407,27 @@ At the beginning of the transition window, A dominates. At the midpoint/cut, the
 
 ### 12.2 Duration clamping
 
-The effective duration is clamped so it cannot require media outside the playable/available portions of either side.
+`durationMs` stores the user's requested duration. The runtime derives `effectiveDurationMs` for rendering; it does not rewrite `durationMs` merely because the current media limits require clamping.
 
-At minimum, clamping considers:
+For centered overlap, each side needs half the effective duration. Therefore the core clamp is:
 
-- Available outgoing clip duration before the cut.
-- Available incoming clip duration after the cut.
-- Media offset/source limits for non-looping video where applicable.
+`effectiveDurationMs = min(durationMs, 2 * outgoingAvailableMs, 2 * incomingAvailableMs)`
+
+The available values also account for:
+
 - Project boundaries.
+- Clip duration around the cut.
+- Source-media limits for non-looping video based on its offset and playable source duration.
 
-The project may preserve the user-requested duration separately if useful for UI restoration, but rendering must use a valid effective duration.
+If either side has no usable duration, the transition is invalid and the runtime falls back to a hard cut with a warning.
+
+The editor may display both the requested and currently effective duration when they differ.
 
 ### 12.3 Adjacency rules
 
-The runtime resolves adjacency from the canonical same-track clip order, not from stale UI assumptions.
+The runtime resolves adjacency from canonical same-track clip order, not from stale UI assumptions.
 
-If a user moves/deletes a clip so a transition no longer connects adjacent compatible clips, the transition becomes invalid and should be surfaced to the editor for cleanup/relinking rather than silently attaching itself to a different cut.
+If a user moves/deletes a clip so a transition no longer connects its original adjacent compatible pair, the transition becomes invalid and is surfaced to the editor for cleanup/relinking. It never silently attaches itself to a different cut.
 
 ### 12.4 Initial built-in transitions
 
@@ -499,14 +520,16 @@ The runtime reuses existing easing/interpolation concepts where possible instead
 
 Rules:
 
+- All stored keyframe positions use integer `timeMs` under the scope rules in section 7.1.
 - Numeric parameters interpolate according to easing.
 - Boolean/enumerated/string parameters use stepped changes unless the preset declares a safe custom interpolation.
 - Values are normalized/clamped after interpolation.
 - Duplicate keyframe times resolve deterministically, using the last canonical entry after normalization.
-- Clip-scoped keyframes are evaluated relative to clip time.
+- Clip effect keyframes are evaluated relative to clip start.
+- Intro/Loop/Outro parameter keyframes are evaluated relative to the animation role window.
 - Master-effect keyframes are evaluated in project time.
 
-The first implementation should expose keyframing only for parameters whose runtime behavior is tested and deterministic.
+The first implementation exposes keyframing only for parameters whose runtime behavior is tested and deterministic.
 
 ## 17. Beat-reactive Behavior
 
@@ -544,18 +567,19 @@ If a project references an unknown asset/version:
 If one effect throws during frame execution:
 
 - Catch the failure at the effect boundary.
-- Record the asset/instance ID.
-- Bypass that effect for the current frame/session as appropriate.
+- Record the asset and instance IDs.
+- Quarantine that effect instance for the current `Renderer` session so it is not retried every frame.
 - Continue rendering the rest of the composition.
-- Avoid spamming repeated identical errors every frame.
+- Clear the quarantine when the renderer is recreated or that effect instance is edited/replaced.
+- Surface one deduplicated warning rather than spamming a warning every frame.
 
 ### Transition failure
 
-A failed transition should fall back to a hard cut for that frame/session and surface the transition instance ID.
+If a transition implementation throws, quarantine that transition instance for the current renderer session, render a hard cut instead, and surface one deduplicated warning containing the transition instance ID.
 
 ### Export behavior
 
-Export should not silently produce materially wrong output for unresolved required assets. Before export, the dependency/runtime validator reports unresolved instances. The UI may let the user explicitly continue with bypass/fallback behavior, but the default path should warn clearly.
+Export should not silently produce materially wrong output for unresolved required assets. Before export, the dependency/runtime validator reports unresolved instances. The UI may let the user explicitly continue with bypass/fallback behavior, but the default path warns clearly.
 
 ## 19. Compatibility and Migration
 
@@ -569,8 +593,9 @@ The creative runtime migration step must:
 - Preserve unknown unrelated fields.
 - Avoid changing project duration/timing/style data.
 - Keep legacy animation behavior usable through the compatibility adapter.
+- Keep legacy effect clips intact.
 
-Migration should be idempotent: loading an already-migrated project should not keep rewriting its creative data.
+Migration must be idempotent: loading an already-migrated project does not keep rewriting its creative data.
 
 ## 20. UI Integration Boundaries
 
@@ -625,20 +650,22 @@ Performance regressions should be measured with representative lyric-heavy proje
 
 Test pure runtime logic for:
 
-- Registry lookup and version resolution.
+- Registry exact-version lookup and explicit compatibility mapping.
 - Parameter normalization/defaults/range clamping.
 - Numeric and stepped keyframe interpolation.
+- Keyframe time-scope semantics.
 - Intro timing.
 - Loop timing.
 - Outro timing.
 - Legacy animation compatibility mappings.
+- Legacy effect-clip preservation.
 - Effect stack ordering.
 - Disabled effect bypass.
 - Duplicate effect independence.
 - Clip-vs-master ordering.
-- Transition adjacency validation.
+- Transition adjacency validation including the fixed 1 ms cut tolerance.
 - Centered virtual-overlap progress.
-- Transition duration clamping.
+- Effective transition duration clamping.
 - Invalid transition detection after clip movement/deletion.
 - Missing asset behavior.
 - Quality-tier selection/degradation rules.
@@ -652,9 +679,10 @@ Test that:
 - Clip effects execute before master effects.
 - Transitions execute at the correct cut window.
 - Guides/selection overlays are not affected by or baked into export/master effects.
-- Failed effects are isolated.
+- Failed effects/transitions are quarantined and isolated.
 - Missing creative assets do not crash a project.
 - Existing projects without creative stacks still render.
+- Existing legacy effect clips still render.
 
 Where pixel-perfect canvas tests are brittle, use deterministic execution-plan/state assertions plus a small number of visual/pixel smoke tests.
 
@@ -697,19 +725,20 @@ The creative runtime phase is complete when all of the following are true:
 
 1. Text clips support independent Intro, Loop, and Outro animation instances through stable registry IDs.
 2. Existing legacy animation projects still load and retain their previous behavior within normal rendering tolerance.
-3. Visual clips support ordered effect stacks that can be toggled, reordered, duplicated, removed, parameterized, and keyframed where supported.
-4. Projects support an ordered master/global effects stack executed after scene composition.
-5. Adjacent compatible same-track clips can be joined by explicit transition objects.
-6. Transitions use centered virtual overlap and do not require manually overlapping timeline clips.
-7. Transition duration is safely clamped to available clip/media time.
-8. Moving or deleting clips cannot silently retarget an existing transition to a different cut.
-9. Preview and export use the same creative runtime and renderer-facing evaluation rules.
-10. Missing or incompatible creative assets are bypassed with explicit warnings while references remain intact.
-11. A single failing effect or transition cannot crash the full render loop.
-12. Preview Low, Preview High, and Export quality paths exist with deterministic preset rules.
-13. All new runtime behavior is covered by focused tests and all existing regression suites remain green.
-14. GitHub Pages static build verification continues to pass on the feature branch.
-15. The implementation does not execute arbitrary downloaded JavaScript or other untrusted runtime code.
+3. Existing legacy `kind: 'effect'` clips still load and retain their current behavior.
+4. Visual clips support ordered effect stacks that can be toggled, reordered, duplicated, removed, parameterized, and keyframed where supported.
+5. Projects support an ordered master/global effects stack executed after scene composition.
+6. Adjacent compatible same-track clips can be joined by explicit transition objects only at a touching cut within the fixed 1 ms normalization tolerance.
+7. Transitions use centered virtual overlap and do not require manually overlapping timeline clips.
+8. Transition rendering derives a safe `effectiveDurationMs` without destructively changing the user's stored requested `durationMs`.
+9. Moving or deleting clips cannot silently retarget an existing transition to a different cut.
+10. Preview and export use the same creative runtime and renderer-facing evaluation rules.
+11. Missing or incompatible creative assets are bypassed with explicit warnings while references remain intact.
+12. A single failing effect or transition cannot crash the full render loop and is quarantined for the current renderer session.
+13. Preview Low, Preview High, and Export quality paths exist with deterministic preset rules.
+14. All new runtime behavior is covered by focused tests and all existing regression suites remain green.
+15. GitHub Pages static build verification continues to pass on the feature branch.
+16. The implementation does not execute arbitrary downloaded JavaScript or other untrusted runtime code.
 
 ## 25. Implementation Boundary for the Following Phase
 
