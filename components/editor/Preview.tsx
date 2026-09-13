@@ -1,0 +1,91 @@
+'use client';
+import {useEffect,useRef,useState,type CSSProperties} from 'react';
+import {Play,Pause,SkipBack,SkipForward,Square,ChevronLeft,ChevronRight,Volume2,Maximize,Minimize,Scan,Repeat2,Minus,Plus,PanelLeftClose,PanelRightClose} from 'lucide-react';
+import {store,useEditor} from '@/lib/lyricforge/store';
+import {audioEngine,useTransport} from '@/lib/lyricforge/audio';
+import {Renderer} from '@/lib/lyricforge/renderer';
+import type {CreativeDiagnostic} from '@/lib/lyricforge/effect-runtime';
+import {clamp,formatTime,lyricClips,effectiveStyle,setText} from '@/lib/lyricforge/model';
+import {pickTextBound,shouldStartInlineEdit,type PreviewBound} from '@/lib/lyricforge/preview-interaction';
+import {Choice,IconButton,Range} from './Controls';
+import CreativeDiagnostics,{creativeDiagnosticKey,dedupeCreativeDiagnostics} from './CreativeDiagnostics';
+
+export function Timecode(){
+  const t=useTransport();
+  return <span className="timecode"><b>{formatTime(t.time,true)}</b><span>/ {formatTime(audioEngine.project?.duration||0,true)}</span></span>;
+}
+function PlayControl(){
+  const {playing}=useTransport();
+  return <IconButton label="Play / Pause (Space)" onClick={()=>void audioEngine.toggle()} className="play-button">{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</IconButton>;
+}
+export function Transport(){
+  const t=useTransport();
+  const [loop,setLoop]=useState(false);
+  const previous=(delta:number)=>{const cs=lyricClips(store.project);const time=audioEngine.time();const next=delta>0?cs.find(c=>c.start>time+20):[...cs].reverse().find(c=>c.start<time-20);if(next){audioEngine.seek(next.start);store.select([next.id]);}};
+  return <div className="transport"><Timecode/><div className="transport-center"><IconButton label="Previous lyric" onClick={()=>previous(-1)}><SkipBack/></IconButton><IconButton label="Frame back" onClick={()=>audioEngine.seek(audioEngine.time()-1000/store.project.fps)}><ChevronLeft/></IconButton><PlayControl/><IconButton label="Frame forward" onClick={()=>audioEngine.seek(audioEngine.time()+1000/store.project.fps)}><ChevronRight/></IconButton><IconButton label="Next lyric" onClick={()=>previous(1)}><SkipForward/></IconButton><IconButton label="Stop" onClick={()=>audioEngine.stop()}><Square size={14}/></IconButton></div><div className="transport-right"><IconButton label="Loop selected clips" active={loop} onClick={()=>{if(loop){audioEngine.loop=null;setLoop(false);return;}const cs=store.project.clips.filter(c=>store.selected.includes(c.id));audioEngine.loop=cs.length?[Math.min(...cs.map(c=>c.start)),Math.max(...cs.map(c=>c.end))]:[0,store.project.duration];setLoop(true);}}><Repeat2/></IconButton><Choice label="Playback speed" value={String(t.speed)} onChange={v=>audioEngine.rate(+v)} options={[.25,.5,.75,1,1.25].map(v=>({label:v+'×',value:String(v)}))}/><div className="volume-control"><Volume2 size={16}/><Range label="Volume" value={t.volume} onChange={v=>audioEngine.setVolume(v)}/></div></div></div>;
+}
+
+export type PreviewQuality='preview-low'|'preview-high';
+export function normalizePreviewQuality(value:unknown):PreviewQuality{return value==='preview-low'||value==='preview-high'?value:'preview-high';}
+type PreviewProps={onFormat:()=>void;onLeft:()=>void;onRight:()=>void;onTextSelected?:(id:string)=>void;quality:PreviewQuality;onQualityChange:(quality:PreviewQuality)=>void};
+export default function Preview({onFormat,onLeft,onRight,onTextSelected,quality,onQualityChange}:PreviewProps){
+  const {project,selected}=useEditor();
+  const canvas=useRef<HTMLCanvasElement>(null);
+  const container=useRef<HTMLDivElement>(null);
+  const renderer=useRef<Renderer|null>(null);
+  const [guides,setGuides]=useState(false);
+  const [zoom,setZoom]=useState(1);
+  const [dragging,setDragging]=useState(false);
+  const [editingId,setEditingId]=useState<string|null>(null);
+  const [diagnostics,setDiagnostics]=useState<CreativeDiagnostic[]>([]);
+  const lastTap=useRef<{id?:string;at:number}>({at:0});
+  const lastDiagnosticsKey=useRef('');
+  const current=useRef({project,selected,guides,quality});current.current={project,selected,guides,quality};
+
+  useEffect(()=>{
+    const render=new Renderer();renderer.current=render;let raf=0;let lastT=-1,lastP=project,lastSel=selected,lastGuide=false,lastQuality:PreviewQuality|null=null;const el=canvas.current!;
+    const fit=()=>{const stage=container.current!;const padding=getComputedStyle(stage);const availableWidth=stage.clientWidth-parseFloat(padding.paddingLeft)-parseFloat(padding.paddingRight);const availableHeight=stage.clientHeight-parseFloat(padding.paddingTop)-parseFloat(padding.paddingBottom);const ratio=current.current.project.width/current.current.project.height;const w=Math.max(1,Math.min(availableWidth,availableHeight*ratio));el.parentElement!.style.width=w+'px';el.parentElement!.style.height=w/ratio+'px';const dpr=Math.min(2,window.devicePixelRatio||1);el.width=Math.max(1,Math.min(1600,Math.round(w*dpr)));el.height=Math.max(1,Math.round(el.width/ratio));lastT=-1;};
+    const observer=new ResizeObserver(fit);observer.observe(container.current!);fit();let lastDraw=0;
+    const loop=()=>{const state=current.current,t=Math.min(audioEngine.time(),Math.max(0,state.project.duration-1));if(lastP.width!==state.project.width||lastP.height!==state.project.height)fit();if(lastP!==state.project||lastSel!==state.selected||lastGuide!==state.guides||lastQuality!==state.quality||lastT!==t||performance.now()-lastDraw>120){render.draw(el,state.project,t,{selected:state.selected,guides:state.guides,quality:state.quality});const nextDiagnostics=dedupeCreativeDiagnostics(render.creativeDiagnostics);const nextDiagnosticsKey=nextDiagnostics.map(creativeDiagnosticKey).join('\u0001');if(lastDiagnosticsKey.current!==nextDiagnosticsKey){lastDiagnosticsKey.current=nextDiagnosticsKey;setDiagnostics(nextDiagnostics);}lastT=t;lastP=state.project;lastSel=state.selected;lastGuide=state.guides;lastQuality=state.quality;lastDraw=performance.now();}raf=requestAnimationFrame(loop);};
+    raf=requestAnimationFrame(loop);return()=>{cancelAnimationFrame(raf);observer.disconnect();render.dispose();};
+  },[]);
+
+  const projectPoint=(e:{clientX:number;clientY:number})=>{const rect=canvas.current!.getBoundingClientRect();return {rect,x:(e.clientX-rect.left)/rect.width*project.width,y:(e.clientY-rect.top)/rect.height*project.height};};
+  const selectTextAt=(x:number,y:number,cycle=true)=>pickTextBound((renderer.current?.bounds||[]) as PreviewBound[],project.clips,x,y,cycle&&selected.length===1?selected[0]:undefined);
+
+  const pointerDown=(e:React.PointerEvent<HTMLCanvasElement>)=>{
+    if(e.button!==0)return;
+    if(editingId){setEditingId(null);return;}
+    const {rect,x,y}=projectPoint(e);
+    const allBounds=[...(renderer.current?.bounds||[])].reverse();
+    const raw=allBounds.find(b=>x>=b.x&&x<=b.x+b.width&&y>=b.y&&y<=b.y+b.height);
+    if(!raw){store.select([]);return;}
+    const rawClip=project.clips.find(c=>c.id===raw.id);
+    const textBound=rawClip&&(rawClip.kind==='lyrics'||rawClip.kind==='text')?selectTextAt(x,y,true):null;
+    const bounds=textBound||raw;
+    store.select([bounds.id]);
+    const clip=project.clips.find(c=>c.id===bounds.id);
+    if(!clip)return;
+    if(clip.kind==='lyrics'||clip.kind==='text'){
+      onTextSelected?.(clip.id);
+      const now=performance.now();
+      if(shouldStartInlineEdit(lastTap.current.id,lastTap.current.at,clip.id,now)){
+        lastTap.current={at:0};setEditingId(clip.id);return;
+      }
+      lastTap.current={id:clip.id,at:now};
+    }
+    if(!store.editable(clip))return;
+    const s=effectiveStyle(project,clip);const startX=e.clientX,startY=e.clientY;
+    const corner=Math.abs(x-bounds.x-bounds.width)<25*project.width/rect.width&&Math.abs(y-bounds.y-bounds.height)<25*project.height/rect.height;
+    store.begin();setDragging(true);e.currentTarget.setPointerCapture(e.pointerId);
+    const move=(event:PointerEvent)=>{const dx=(event.clientX-startX)/rect.width,dy=(event.clientY-startY)/rect.height;if(corner)store.patch(clip.id,{style:{...clip.style,scale:clamp(s.scale+dx*2,.1,5)}});else{let nx=s.x+dx,ny=s.y+dy;if(Math.abs(nx-.5)<.009)nx=.5;if(Math.abs(ny-.5)<.009)ny=.5;store.patch(clip.id,{style:{...clip.style,x:clamp(nx,-.25,1.25),y:clamp(ny,-.25,1.25)}});}};
+    const up=()=>{store.end();setDragging(false);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);};
+    window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);
+  };
+
+  const editClip=editingId?project.clips.find(c=>c.id===editingId):undefined;
+  const editBound=editingId?(renderer.current?.bounds||[]).find(b=>b.id===editingId):undefined;
+  const inlineStyle:CSSProperties|undefined=editBound?{left:`${editBound.x/project.width*100}%`,top:`${editBound.y/project.height*100}%`,width:`${Math.max(5,editBound.width/project.width*100)}%`,height:`${Math.max(5,editBound.height/project.height*100)}%`}:undefined;
+  const pinch=useRef(0);
+  return <section className="preview-panel"><div className="viewer-toolbar"><div className="viewer-label"><IconButton label="Toggle library panel" onClick={onLeft}><PanelLeftClose/></IconButton><span>Preview</span></div><div className="viewer-options"><Choice label="Preview quality" className="preview-quality-choice" value={quality} onChange={value=>onQualityChange(normalizePreviewQuality(value))} options={[{label:'Low — faster editing',value:'preview-low'},{label:'High — closer to export',value:'preview-high'}]}/><button className="format-badge" onClick={onFormat}>{project.width} × {project.height}<ChevronRight size={12}/></button><IconButton label="Safe-area guides" active={guides} onClick={()=>setGuides(!guides)}><Scan/></IconButton><IconButton label="Full-screen preview" onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else void container.current?.requestFullscreen();}}><Maximize/></IconButton><IconButton label="Toggle inspector" onClick={onRight}><PanelRightClose/></IconButton></div></div><div className="viewer-stage" ref={container} onWheel={e=>{if(e.ctrlKey){e.preventDefault();setZoom(z=>clamp(z-e.deltaY*.002,.3,2));}}} onTouchStart={e=>{if(e.touches.length===2)pinch.current=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}} onTouchMove={e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);setZoom(z=>clamp(z*d/(pinch.current||d),.3,2));pinch.current=d;}}}><div className="canvas-fit" style={{aspectRatio:`${project.width}/${project.height}`,transform:`scale(${zoom})`}}><canvas ref={canvas} className={dragging?'dragging':''} aria-label="Video preview. Tap text to select, double tap to edit, drag to reposition." onPointerDown={pointerDown}/>{editClip&&editBound&&<textarea autoFocus className="preview-inline-editor" aria-label="Edit text in preview" style={inlineStyle} value={editClip.text} onChange={e=>store.patch(editClip.id,setText(editClip,e.target.value),'preview-text')} onBlur={()=>setEditingId(null)} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();setEditingId(null);}else if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();setEditingId(null);}}}/>}</div><CreativeDiagnostics diagnostics={diagnostics}/><button className="fullscreen-exit" onClick={()=>void document.exitFullscreen()}><Minimize size={16}/> Exit full screen</button><div className="canvas-zoom"><IconButton label="Zoom preview out" onClick={()=>setZoom(z=>Math.max(.3,z-.1))}><Minus size={12}/></IconButton><button onClick={()=>setZoom(1)}>{zoom===1?'Fit':Math.round(zoom*100)+'%'}</button><IconButton label="Zoom preview in" onClick={()=>setZoom(z=>Math.min(2,z+.1))}><Plus size={12}/></IconButton></div></div><Transport/></section>;
+}

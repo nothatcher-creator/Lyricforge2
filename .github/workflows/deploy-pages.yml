@@ -2,7 +2,7 @@ name: Deploy LyricForge to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/source-foundation, feat/creative-catalog]
   workflow_dispatch:
 
 permissions:
@@ -11,177 +11,53 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Extract uploaded source
-        shell: bash
+      - uses: actions/checkout@v6
+      - name: Enable pinned pnpm
         run: |
-          set -euo pipefail
-          rm -rf site-src
-          mkdir site-src
-          unzip -q LyricForge-v2-source.zip -d site-src
-          shopt -s dotglob nullglob
-          entries=(site-src/*)
-          if [ ${#entries[@]} -eq 1 ] && [ -d "${entries[0]}" ]; then
-            mv "${entries[0]}"/* site-src/ 2>/dev/null || true
-            rmdir "${entries[0]}" 2>/dev/null || true
-          fi
-
-      - name: Adapt LyricForge for GitHub Pages
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # This helper belongs to the original server-hosted ChatGPT runtime.
-          # The editor itself is browser-side and does not import it.
-          rm -f site-src/app/chatgpt-auth.ts
-
-          cat > site-src/next.config.ts <<'EOF'
-          import type { NextConfig } from "next";
-
-          const nextConfig: NextConfig = {
-            output: "export",
-            assetPrefix: "/Lyricforge2",
-            trailingSlash: true,
-          };
-
-          export default nextConfig;
-          EOF
-
-          # GitHub Pages is static; omit the original Cloudflare/OpenAI hosting plugins.
-          cat > site-src/vite.config.ts <<'EOF'
-          import vinext from "vinext";
-          import { defineConfig } from "vite";
-
-          export default defineConfig({
-            plugins: [vinext({ prerender: { routes: "*" } })],
-          });
-          EOF
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          page = Path('site-src/app/page.tsx')
-          page_text = page.read_text()
-          if 'export const dynamic' not in page_text:
-              page.write_text('export const dynamic = "force-static";\n' + page_text)
-
-          roots = [Path('site-src/app'), Path('site-src/components'), Path('site-src/lib')]
-          for root in roots:
-              for path in root.rglob('*'):
-                  if path.suffix not in {'.ts', '.tsx'}:
-                      continue
-                  text = path.read_text()
-                  text = text.replace('"/favicon.svg"', '"/Lyricforge2/favicon.svg"')
-                  text = text.replace("'/favicon.svg'", "'/Lyricforge2/favicon.svg'")
-                  text = text.replace("'/workers/", "'/Lyricforge2/workers/")
-                  text = text.replace('"/workers/', '"/Lyricforge2/workers/')
-                  path.write_text(text)
-
-          worker = Path('site-src/public/workers/transcription.js')
-          if worker.exists():
-              text = worker.read_text()
-              text = text.replace('wasmPaths="/workers/"', 'wasmPaths="/Lyricforge2/workers/"')
-              worker.write_text(text)
-          PY
-
-          if grep -RInE 'next/headers|headers\(|cookies\(|redirect\(' site-src/app site-src/components site-src/lib --include='*.ts' --include='*.tsx'; then
-            echo 'ERROR: server-only dynamic APIs remain in the static Pages build.'
-            exit 1
-          fi
-
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
       - name: Install dependencies
-        working-directory: site-src
-        run: npm install
-
+        run: pnpm install --frozen-lockfile
+      - name: Run unit tests
+        run: pnpm test -- --run
+      - name: Run legacy regression tests
+        run: pnpm run test:legacy
+      - name: Build official creative catalog
+        run: pnpm run catalog:build
+      - name: Validate official creative catalog
+        run: pnpm run catalog:validate
       - name: Build static LyricForge
-        working-directory: site-src
-        run: npm run build
-
+        run: pnpm run build
       - name: Normalize GitHub Pages artifact
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d site-src/dist/client/Lyricforge2/_next ]; then
-            rm -rf site-src/dist/client/_next
-            mv site-src/dist/client/Lyricforge2/_next site-src/dist/client/_next
-            rmdir site-src/dist/client/Lyricforge2
+          if [ -d dist/client/Lyricforge2/_next ]; then
+            rm -rf dist/client/_next
+            mv dist/client/Lyricforge2/_next dist/client/_next
+            rmdir dist/client/Lyricforge2
           fi
-          touch site-src/dist/client/.nojekyll
-
+          touch dist/client/.nojekyll
       - name: Verify deployable site
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f site-src/dist/client/index.html
-          compgen -G 'site-src/dist/client/_next/static/chunks/index-*.js' > /dev/null
-          test -f site-src/dist/client/workers/analysis.js
-          test -f site-src/dist/client/workers/transcription.js
-          grep -q 'LyricForge' site-src/dist/client/index.html
-          ! grep -q 'Cloudflare Local Explorer' site-src/dist/client/index.html
-          grep -q '/Lyricforge2/_next/' site-src/dist/client/index.html
-          grep -q '/Lyricforge2/workers/' site-src/dist/client/workers/transcription.js
-          test ! -d site-src/dist/client/Lyricforge2
-
-          python3 - <<'PY'
-          from pathlib import Path
-          from html.parser import HTMLParser
-          from urllib.parse import urlsplit
-          import re
-
-          root = Path('site-src/dist/client')
-          html = (root / 'index.html').read_text()
-
-          class Parser(HTMLParser):
-              def __init__(self):
-                  super().__init__(); self.urls=[]
-              def handle_starttag(self, tag, attrs):
-                  for k,v in attrs:
-                      if k in {'src','href'} and v:
-                          self.urls.append(v)
-
-          parser=Parser(); parser.feed(html)
-          prefix='/Lyricforge2/'
-          missing=[]
-          for url in parser.urls:
-              path=urlsplit(url).path
-              if path.startswith(prefix):
-                  local=root / path[len(prefix):]
-                  if not local.is_file():
-                      missing.append((url, str(local)))
-          if missing:
-              raise SystemExit('Missing generated assets: '+repr(missing))
-
-          bad=[]
-          unprefixed=re.compile(r'''["']/((?:workers/)|(?:favicon\.svg))''')
-          for path in root.rglob('*'):
-              if path.suffix not in {'.html','.js','.mjs'}:
-                  continue
-              if unprefixed.search(path.read_text(errors='ignore')):
-                  bad.append(str(path.relative_to(root)))
-          if bad:
-              raise SystemExit('Unprefixed project asset URLs remain in: '+repr(bad))
-
-          print('Validated', len(parser.urls), 'HTML asset references.')
-          PY
-
-      - name: Configure GitHub Pages
+        run: node scripts/verify-pages-build.mjs
+      - name: Configure Pages
+        if: github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
         with:
-          path: site-src/dist/client
+          path: dist/client
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
