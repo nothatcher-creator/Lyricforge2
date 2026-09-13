@@ -1,0 +1,43 @@
+name: Apply Task 10 Typography Integration
+
+on:
+  push:
+    branches: [feat/creative-catalog]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: apply task10 typography integration'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-catalog
+          fetch-depth: 0
+      - name: Patch typography picker
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('components/editor/Inspector.tsx')
+          text=path.read_text()
+          replacements=[
+            ("import {useState} from 'react';", "import {useState,useSyncExternalStore} from 'react';"),
+            ("import {store,useEditor} from '@/lib/lyricforge/store';", "import {store,useEditor} from '@/lib/lyricforge/store';\nimport {getCatalogFontsSnapshot,subscribeCatalogFonts} from '@/lib/lyricforge/catalog-fonts';"),
+            ("export default function Inspector({onFontImport}:{onFontImport:()=>void}){const {project,selected,selectedTransitionId}=useEditor();", "export default function Inspector({onFontImport}:{onFontImport:()=>void}){const {project,selected,selectedTransitionId}=useEditor();const catalogFonts=useSyncExternalStore(subscribeCatalogFonts,getCatalogFontsSnapshot,getCatalogFontsSnapshot);"),
+            ("fonts={project.assets.filter(a=>a.type==='font').map(a=>({name:a.name.replace(/\\.[^.]+$/,''),family:a.fontFamily!}))}", "fonts={[...catalogFonts.map(font=>({name:font.name,family:font.family})),...project.assets.filter(a=>a.type==='font').map(a=>({name:a.name.replace(/\\.[^.]+$/,''),family:a.fontFamily!}))]}")
+          ]
+          for old,new in replacements:
+            if old not in text:
+              raise SystemExit(f'missing Inspector patch target: {old[:90]}')
+            text=text.replace(old,new,1)
+          path.write_text(text)
+          PY
+      - name: Commit typography integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/editor/Inspector.tsx
+          git commit -m "feat: expose catalog fonts in typography picker"
+          git push origin HEAD:feat/creative-catalog
