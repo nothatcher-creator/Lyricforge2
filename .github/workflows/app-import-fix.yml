@@ -1,0 +1,46 @@
+name: Apply app import fix
+
+on:
+  push:
+    branches: [feat/creative-catalog]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: apply app import fix patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-catalog
+      - name: Wire safe audio replacement into editor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path=Path('components/editor/Editor.tsx')
+          text=path.read_text()
+          model_import="import {BRAND,uid,makeClip,makeTrack,lyricClips,type Project,type Asset,clamp} from '@/lib/lyricforge/model';"
+          helper_import="import {replacePrimaryAudioProject} from '@/lib/lyricforge/media-import';"
+          if helper_import not in text:
+              if model_import not in text:
+                  raise SystemExit('model import anchor not found')
+              text=text.replace(model_import,model_import+'\n'+helper_import,1)
+
+          pattern=re.compile(r"const asset=await assets\.import\(file\);.*?toast\(`\$\{asset\.type==='video'\?'Video':'Image'\} added as a background layer`\);\}")
+          replacement="""const asset=await assets.import(file);if(asset.type==='audio'){const next=replacePrimaryAudioProject(store.project,asset);store.update(()=>next);const c=next.clips.find(c=>c.kind==='audio'&&c.assetId===asset.id)!;store.select([c.id]);audioEngine.setProject(next);audioEngine.seek(0);analyze(asset);setTab('lyrics');if(workspaceMode==='phone-portrait'){setLeft(false);setRight(false);}else setLeft(true);toast('Song imported. Press Play to preview it, then add lyrics or start Auto Detect.');}else{store.update(p=>({...p,assets:[...p.assets.filter(existing=>existing.id!==asset.id),asset]}));if(asset.type==='font'){setRight(true);toast(`${file.name} is ready in Project Fonts`);}else{addMedia(asset);setTab('media');if(workspaceMode==='phone-portrait'){setLeft(false);setRight(false);}else setRight(true);toast(`${asset.type==='video'?'Video':'Image'} added as a background layer`);}}"""
+          text,count=pattern.subn(replacement,text,count=1)
+          if count!=1:
+              raise SystemExit(f'import branch replacement count was {count}, expected 1')
+          path.write_text(text)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "nothatcher-creator"
+          git config user.email "nothatcher@gmail.com"
+          git add components/editor/Editor.tsx
+          git commit -m "fix: preserve editor layers on media import"
+          git push origin HEAD:feat/creative-catalog
