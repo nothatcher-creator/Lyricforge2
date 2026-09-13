@@ -15,6 +15,7 @@ export interface CatalogInstallerOptions{
 }
 
 export interface CatalogRemoveOptions{force?:boolean;}
+export interface CatalogInstallBytesOptions{makeCurrent?:boolean;}
 
 const packageCacheKey=(manifest:Pick<CatalogAssetManifest,'type'|'id'|'version'>)=>`package:${catalogVersionKey(manifest.type,manifest.id,manifest.version)}`;
 
@@ -50,6 +51,12 @@ export class CatalogInstaller{
   const manifest=validateCatalogAssetManifest(input);
   this.assertInstallable(manifest);
   const bytesInput=await this.fetchBytes(manifest.package.url);
+  return this.installBytes(manifest,bytesInput,{makeCurrent:true});
+ }
+
+ async installBytes(input:CatalogAssetManifest,bytesInput:Uint8Array|ArrayBuffer,options:CatalogInstallBytesOptions={}):Promise<InstalledAssetVersion>{
+  const manifest=validateCatalogAssetManifest(input);
+  this.assertInstallable(manifest);
   const validated=await validateCatalogPackage(bytesInput,manifest);
   const key=packageCacheKey(manifest);
   const record:InstalledAssetVersion={
@@ -69,7 +76,7 @@ export class CatalogInstaller{
    cached=true;
    await this.storage.putVersion(record);
    versionCommitted=true;
-   await this.storage.setCurrentVersion(record.type,record.id,record.version);
+   if(options.makeCurrent!==false)await this.storage.setCurrentVersion(record.type,record.id,record.version);
    return record;
   }catch(error){
    if(cached&&!versionCommitted){
