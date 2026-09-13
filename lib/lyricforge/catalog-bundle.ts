@@ -1,7 +1,8 @@
 import {strFromU8,strToU8} from 'fflate';
 import type {Project} from './model';
 import type {CatalogStorage} from './catalog-storage';
-import type {CatalogAssetType,ProjectDependency} from './catalog-types';
+import type {CatalogAssetType} from './catalog-types';
+import type {ProjectDependency} from './creative-assets';
 import {CATALOG_ID} from './catalog-types';
 import {collectProjectCatalogDependencies} from './catalog-dependencies';
 import {validateCatalogAssetManifest} from './catalog-validation';
