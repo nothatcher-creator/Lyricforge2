@@ -1,0 +1,34 @@
+name: Debug legacy test compiler layout
+
+on:
+  push:
+    branches: [feat/source-foundation]
+    paths:
+      - .github/workflows/debug-legacy-test-layout.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/source-foundation
+      - run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+          pnpm install --frozen-lockfile
+      - name: Inspect esbuild selection and output tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== esbuild ==='
+          readlink -f node_modules/.bin/esbuild || true
+          node_modules/.bin/esbuild --version
+          rm -rf /tmp/lyricforge-compiled
+          mkdir -p /tmp/lyricforge-compiled
+          node_modules/.bin/esbuild lib/lyricforge/model.ts lib/lyricforge/lyrics.ts lib/lyricforge/history.ts lib/lyricforge/animation.ts lib/lyricforge/synchronization.ts lib/lyricforge/store.ts tests/project-entry.ts --outdir=/tmp/lyricforge-compiled --outbase=. '--entry-names=[name]' --bundle --packages=external --platform=node --format=esm --out-extension:.js=.mjs
+          echo '=== output files ==='
+          find /tmp/lyricforge-compiled -type f -printf '%P\n' | sort
