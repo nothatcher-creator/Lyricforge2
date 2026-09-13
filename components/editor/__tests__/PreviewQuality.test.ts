@@ -1,12 +1,13 @@
 import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {describe,expect,it} from 'vitest';
 
-function source(path:string){return readFileSync(new URL(`../../../${path}`,import.meta.url),'utf8');}
+function source(path:string){return readFileSync(resolve(process.cwd(),path),'utf8');}
 
 describe('creative preview quality wiring',()=>{
   it('persists only Low or High preview quality and passes it into Preview',()=>{
     const editor=source('components/editor/Editor.tsx');
-    expect(editor).toContain("creativePreviewQuality");
+    expect(editor).toContain('creativePreviewQuality');
     expect(editor).toContain("loadSetting");
     expect(editor).toContain("saveSetting");
     expect(editor).toMatch(/<Preview[\s\S]*quality=\{creativePreviewQuality\}/);
