@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {describe,expect,it} from 'vitest';
 import {createProject,makeClip,makeTrack} from '../model';
 import {Renderer} from '../renderer';
@@ -26,5 +28,22 @@ describe('Renderer creative frame adapter',()=>{
     const exported=renderer.recordFrame(project(),1000,{export:true,quality:'preview-low'});
     expect(exported.operations).not.toContain('editor:overlay');
     expect(exported.plan.quality).toBe('export');
+  });
+
+  it('validates creative references before hardware encoder initialization',()=>{
+    const source=readFileSync(resolve(process.cwd(),'lib/lyricforge/exporter.ts'),'utf8');
+    expect(source).toContain("import {validateCreativeProject} from './creative-runtime'");
+    const validation=source.indexOf('validateCreativeProject(project)');
+    const encoderImport=source.indexOf("await import('mediabunny')");
+    expect(validation).toBeGreaterThan(-1);
+    expect(encoderImport).toBeGreaterThan(-1);
+    expect(validation).toBeLessThan(encoderImport);
+  });
+
+  it('forces the same export-quality renderer in both export paths',()=>{
+    const hardware=readFileSync(resolve(process.cwd(),'lib/lyricforge/exporter.ts'),'utf8');
+    const software=readFileSync(resolve(process.cwd(),'lib/lyricforge/software-exporter.ts'),'utf8');
+    expect(hardware).toContain("renderer.draw(canvas,p,time,{export:true,quality:'export'})");
+    expect(software).toContain("renderer.draw(canvas,p,time,{export:true,quality:'export'})");
   });
 });
