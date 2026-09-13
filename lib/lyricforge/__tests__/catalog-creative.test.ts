@@ -35,7 +35,11 @@ describe('installed creative catalog presets',()=>{
   expect(installed.name).toBe('Neon Pulse');
   expect(installed.runtime).toBe('effect.glow');
   expect(installed.params.radius.default).toBe(30);
-  expect(installed.params.radius.min).toBe(trusted.params.radius.min);
+  const radius=installed.params.radius,trustedRadius=trusted.params.radius;
+  expect(radius.kind).toBe('number');
+  expect(trustedRadius.kind).toBe('number');
+  if(radius.kind!=='number'||trustedRadius.kind!=='number')throw new Error('Glow radius must remain a number schema');
+  expect(radius.min).toBe(trustedRadius.min);
   expect(installed.targets).toEqual(trusted.targets);
   expect(installed.quality).toEqual(trusted.quality);
  });
@@ -46,7 +50,10 @@ describe('installed creative catalog presets',()=>{
   expect(installed.params.radius.default).toBe(80);
   expect(installed.params.intensity.default).toBe(0);
   expect(installed.params).not.toHaveProperty('unknown');
-  expect(installed.params.radius.max).toBe(80);
+  const radius=installed.params.radius;
+  expect(radius.kind).toBe('number');
+  if(radius.kind!=='number')throw new Error('Glow radius must remain a number schema');
+  expect(radius.max).toBe(80);
  });
 
  it('rejects a manifest whose runtime does not match the supplied trusted definition',()=>{
