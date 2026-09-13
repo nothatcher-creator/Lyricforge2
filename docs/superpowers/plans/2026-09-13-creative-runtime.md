@@ -1,56 +1,86 @@
 # LyricForge Creative Runtime Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Every product change follows test-driven development: establish a relevant failing test, implement the smallest coherent change, then run focused and regression verification before moving on.
 
-**Goal:** Add LyricForge's trusted creative runtime for Intro/Loop/Outro text animations, ordered clip effects, master effects, and explicit adjacent-clip transitions while keeping preview/export behavior deterministic and backward compatible.
+**Goal:** Add LyricForge's trusted creative runtime for Intro/Loop/Outro text animations, ordered clip effects, master effects, and explicit adjacent-clip transitions while keeping preview/export behavior deterministic, mobile-friendly, and backward compatible.
 
-**Architecture:** Extend the existing project model with declarative creative instances, resolve them through a trusted built-in registry, and keep timing/evaluation logic in pure runtime modules. The existing `Renderer` remains the single frame producer for preview and both export paths; it receives resolved animation/effect/transition plans and applies them through reusable canvas surfaces. UI edits the same project data through `EditorStore`, and legacy style animations plus legacy `kind: 'effect'` clips remain valid.
+**Architecture:** Extend the existing project model with declarative creative instances, resolve them through a trusted built-in registry, and keep timing/evaluation logic in small pure runtime modules. The existing `Renderer` remains the single frame producer for preview, Mediabunny export, and FFmpeg-WASM export. The renderer consumes resolved creative plans and uses reusable intermediate surfaces only when necessary. UI edits the same `EditorStore`; no second project/editor state store is introduced.
 
 **Tech Stack:** React 19, TypeScript 5.9, Canvas 2D / OffscreenCanvas where supported, Vinext/Vite, Vitest + jsdom, existing `EditorStore`, `Renderer`, Mediabunny export, FFmpeg-WASM fallback, pnpm 11.25.0, GitHub Pages.
 
-**Spec:** `docs/superpowers/specs/2026-09-13-creative-runtime-design.md`
+**Approved spec:** `docs/superpowers/specs/2026-09-13-creative-runtime-design.md`
 
 ## Global Constraints
 
-- Transitions are explicit objects only between adjacent compatible clips on the same track.
-- A valid transition cut requires `abs(outgoing.end - incoming.start) <= 1` ms; larger gaps and physical overlaps are invalid in this phase.
-- Transition timing uses centered virtual overlap and stores requested `durationMs`; rendering derives a non-destructive `effectiveDurationMs`.
-- Clip effects run before transition/compositing; master effects run after the complete scene; editor guides/selection overlays run last and are never baked into export.
-- Text animations use at most one `intro`, one `loop`, and one `outro` instance per text-capable clip.
-- Project data stores stable IDs, semantic versions, parameters, enable state, ordering, and keyframes; project JSON never stores executable implementation code.
-- Runtime version resolution is exact first. A different version may resolve only through an explicit compatibility alias in the built-in registry.
-- Existing style animation fields and legacy `kind: 'effect'` clips remain loadable and visually compatible until the user changes creative settings.
-- Missing/incompatible assets are preserved in project data, bypassed for rendering, and reported; they are never silently replaced.
-- A failing effect/transition is quarantined for the current `Renderer` session instead of crashing or throwing every frame.
+- Transitions are explicit project objects only between adjacent compatible clips on the same track.
+- A valid cut requires `Math.abs(outgoing.end - incoming.start) <= 1` ms. Gaps larger than 1 ms and physical clip overlaps are invalid in this phase.
+- A transition stores the user's requested `durationMs`; rendering derives `effectiveDurationMs` without rewriting the requested value.
+- Transition time uses centered virtual overlap: `[cut - effectiveDurationMs/2, cut + effectiveDurationMs/2]`.
+- During virtual overlap, the outgoing side samples no later than its last in-clip frame and the incoming side samples no earlier than its first in-clip frame. This intentionally holds boundary content on the opposite half of the virtual window rather than inventing hidden media handles.
+- Clip source -> text animation/transform -> clip effects -> same-track transition/compositing -> complete scene -> master effects -> editor overlays/output.
+- Editor guides and selection outlines are drawn after creative output and never appear in exported frames.
+- Text-capable clips have at most one canonical `intro`, one `loop`, and one `outro` animation instance.
+- Canonical animation slots override legacy animation fields role-by-role. An absent canonical role continues to use the corresponding legacy field, preserving mixed old/new projects.
+- Existing legacy `Style.entrance`, `Style.idle`, `Style.exit`, and `Style.emphasis` fields remain loadable. Legacy `kind:'effect'` clips also remain loadable and keep their current rendering path.
+- Project JSON stores IDs, versions, parameters, enable state, order, and keyframes only. It never stores executable implementation code.
+- Registry version resolution is exact first. A different version can resolve only through an explicit compatibility alias declared in trusted source code.
+- Missing/incompatible creative assets keep their original project references, render as bypass/hard-cut, and produce diagnostics. They are never silently replaced.
+- Runtime executor failures are caught only at the individual effect/transition boundary. Failed instance IDs are quarantined for the current `Renderer` session; unrelated renderer/media errors still propagate.
+- Editing/replacing a quarantined instance clears only that instance's quarantine. Recreating the renderer clears all quarantine state.
 - Quality modes are exactly `preview-low`, `preview-high`, and `export`.
-- No arbitrary downloaded JavaScript, WebAssembly, shader source, or executable plugin code is introduced.
-- No online catalog, remote manifest, asset download/install, cross-track transition, track-level effect stack, or node compositor is included in this plan.
-- Every checkpoint must preserve the existing `pnpm test -- --run`, `pnpm run test:legacy`, static build, and GitHub Pages artifact verification.
+- No downloaded JavaScript, WebAssembly, shader source, or arbitrary executable plugin code is introduced.
+- No online catalog, remote manifest, download/install/update flow, cross-track transition, track-level effect stack, node compositor, or full Settings redesign is included in this plan.
+- Existing desktop behavior, phone portrait bottom-sheet behavior, `LABEL=174`, 50 px timeline rows, clip trim, pinch zoom, snapping, and legacy project export must remain compatible.
 
-## File Structure
+## Stable IDs and Types
 
-New focused runtime files:
+Use these exact built-in ID prefixes and initial version `1.0.0`:
 
-- `lib/lyricforge/creative-assets.ts` — serializable instance/keyframe/reference contracts.
-- `lib/lyricforge/creative-registry.ts` — trusted definition registry, exact-version resolution, compatibility aliases, parameter normalization.
-- `lib/lyricforge/creative-presets.ts` — built-in animation/effect/transition metadata and parameter schemas.
-- `lib/lyricforge/creative-keyframes.ts` — deterministic parameter interpolation.
-- `lib/lyricforge/animation-runtime.ts` — Intro/Loop/Outro evaluation plus legacy style compatibility adapter.
-- `lib/lyricforge/effect-runtime.ts` — ordered effect-plan evaluation, scope/quality handling, diagnostics.
-- `lib/lyricforge/transition-runtime.ts` — adjacency, virtual-overlap timing, duration clamping, transition evaluation.
-- `lib/lyricforge/creative-runtime.ts` — frame-level facade used by the renderer and pre-export validation.
-- `lib/lyricforge/render-surfaces.ts` — reusable intermediate canvas pool.
-- `lib/lyricforge/render-effects.ts` — trusted Canvas 2D effect execution.
-- `lib/lyricforge/render-transitions.ts` — trusted transition compositing.
-- `components/editor/CreativeInspector.tsx` — Intro/Loop/Outro, clip/master effects, transition parameter UI.
-- `components/editor/TimelineTransitions.tsx` — transition creation/selection/drag handle UI.
+- Text animation: `builtin.animation.<slug>`
+- Effect: `builtin.effect.<slug>`
+- Transition: `builtin.transition.<slug>`
 
-Existing files modified:
+Core runtime types:
 
+```ts
+export type CreativeQuality='preview-low'|'preview-high'|'export';
+export type CreativeEasing='linear'|'ease-in'|'ease-out'|'ease-in-out';
+export type CreativeTarget='lyrics'|'text'|'image'|'video'|'visualizer'|'master';
+
+export interface CreativeKeyframe{
+  id:string;
+  timeMs:number;
+  value:AssetParamValue;
+  easing:CreativeEasing;
+}
+export type ParamKeyframes=Record<string,CreativeKeyframe[]>;
+```
+
+## Planned File Structure
+
+New runtime files:
+
+- `lib/lyricforge/creative-registry.ts`
+- `lib/lyricforge/creative-presets.ts`
+- `lib/lyricforge/creative-keyframes.ts`
+- `lib/lyricforge/animation-runtime.ts`
+- `lib/lyricforge/effect-runtime.ts`
+- `lib/lyricforge/transition-runtime.ts`
+- `lib/lyricforge/creative-runtime.ts`
+- `lib/lyricforge/render-surfaces.ts`
+- `lib/lyricforge/render-effects.ts`
+- `lib/lyricforge/render-transitions.ts`
+- `components/editor/CreativeInspector.tsx`
+- `components/editor/TimelineTransitions.tsx`
+- `components/editor/CreativeDiagnostics.tsx`
+
+Existing files modified as needed:
+
+- `lib/lyricforge/creative-assets.ts`
 - `lib/lyricforge/model.ts`
 - `lib/lyricforge/project-migration.ts`
 - `lib/lyricforge/project-manager.ts`
-- `lib/lyricforge/animation.ts` only for shared easing/compatibility reuse, not to grow the new subsystem inside it.
+- `lib/lyricforge/animation.ts`
 - `lib/lyricforge/renderer.ts`
 - `lib/lyricforge/exporter.ts`
 - `lib/lyricforge/software-exporter.ts`
@@ -58,13 +88,12 @@ Existing files modified:
 - `components/editor/Inspector.tsx`
 - `components/editor/Timeline.tsx`
 - `components/editor/Preview.tsx`
+- `components/editor/Editor.tsx`
 - `app/globals.css`
-
-Focused tests are added under `lib/lyricforge/__tests__/` and `components/editor/__tests__/`.
 
 ---
 
-### Task 1: Extend the serializable creative model and the single project migration boundary
+### Task 1: Extend the serializable creative model and make migration the single load boundary
 
 **Files:**
 - Modify: `lib/lyricforge/creative-assets.ts`
@@ -75,33 +104,72 @@ Focused tests are added under `lib/lyricforge/__tests__/` and `components/editor
 - Modify: `lib/lyricforge/__tests__/project-migration.test.ts`
 - Create: `lib/lyricforge/__tests__/project-creative-validation.test.ts`
 
-**Interfaces:**
-- Produces `CreativeEasing = 'linear'|'ease-in'|'ease-out'|'ease-in-out'`.
-- Produces `CreativeKeyframe { id:string; timeMs:number; value:AssetParamValue; easing:CreativeEasing }`.
-- Produces `ParamKeyframes = Record<string, CreativeKeyframe[]>`.
-- Extends `AnimationInstance` with `keyframes: ParamKeyframes`.
-- Extends `EffectInstance` with stable `id:string` and `keyframes: ParamKeyframes`.
-- Extends `TransitionInstance` with stable `id:string`; transition parameters are not independently keyframed in this phase.
-- Extends `Clip` with `animations?: Partial<Record<AnimationRole,AnimationInstance>>` and `effects: EffectInstance[]`.
-- Extends `Project` with `schemaVersion:number`, `dependencies:ProjectDependency[]`, `masterEffects:EffectInstance[]`, and `transitions:TransitionInstance[]`.
-- `PROJECT_SCHEMA_VERSION` becomes `3`.
-- `validateProject(data)` must call `migrateProjectDocument(data)` before Zod parsing.
-
-- [ ] **Step 1: Write failing type/migration tests**
-
-Add these behaviors to `project-migration.test.ts`:
+**Data contracts:**
 
 ```ts
-it('adds creative runtime defaults without changing legacy timing or effect clips',()=>{
+export interface AnimationInstance{
+  assetId:string;
+  version:string;
+  role:AnimationRole;
+  enabled:boolean;
+  params:Record<string,AssetParamValue>;
+  keyframes:ParamKeyframes;
+}
+
+export interface EffectInstance{
+  id:string;
+  assetId:string;
+  version:string;
+  enabled:boolean;
+  params:Record<string,AssetParamValue>;
+  keyframes:ParamKeyframes;
+}
+
+export interface TransitionInstance{
+  id:string;
+  assetId:string;
+  version:string;
+  outgoingItemId:string;
+  incomingItemId:string;
+  durationMs:number;
+  easing:CreativeEasing;
+  params:Record<string,AssetParamValue>;
+}
+```
+
+`Clip` gains:
+
+```ts
+animations?:Partial<Record<AnimationRole,AnimationInstance>>;
+effects:EffectInstance[];
+```
+
+`Project` gains:
+
+```ts
+schemaVersion:number;
+dependencies:ProjectDependency[];
+masterEffects:EffectInstance[];
+transitions:TransitionInstance[];
+```
+
+`PROJECT_SCHEMA_VERSION` becomes `3`.
+
+- [ ] **Step 1: Add failing migration/model tests**
+
+```ts
+it('adds creative defaults without changing legacy timing or effect clips',()=>{
   const legacy={clips:[{id:'fx-old',kind:'effect',start:100,end:900}],duration:1000};
   const migrated=migrateProjectDocument(legacy);
   expect(migrated.schemaVersion).toBe(3);
   expect(migrated.masterEffects).toEqual([]);
   expect(migrated.transitions).toEqual([]);
-  expect((migrated.clips as any[])[0]).toMatchObject({id:'fx-old',kind:'effect',start:100,end:900,effects:[]});
+  expect((migrated.clips as any[])[0]).toMatchObject({
+    id:'fx-old',kind:'effect',start:100,end:900,effects:[]
+  });
 });
 
-it('is idempotent for already migrated creative fields',()=>{
+it('is idempotent for creative defaults',()=>{
   const once=migrateProjectDocument({clips:[],masterEffects:[],transitions:[],dependencies:[]});
   expect(migrateProjectDocument(once)).toEqual(once);
 });
@@ -110,98 +178,104 @@ it('is idempotent for already migrated creative fields',()=>{
 Add to `creative-assets.test.ts`:
 
 ```ts
-it('keeps duplicated effect presets independent through instance ids',()=>{
-  const a:EffectInstance={id:'fx-a',assetId:'builtin.effect.glow',version:'1.0.0',enabled:true,params:{intensity:.5},keyframes:{}};
-  const b={...a,id:'fx-b'};
-  expect(a.id).not.toBe(b.id);
+it('uses stable instance ids for duplicate effect presets',()=>{
+  const first:EffectInstance={
+    id:'fx-a',assetId:'builtin.effect.glow',version:'1.0.0',enabled:true,
+    params:{intensity:.5},keyframes:{}
+  };
+  const second={...structuredClone(first),id:'fx-b'};
+  expect(second.id).not.toBe(first.id);
+  expect(second.params).toEqual(first.params);
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm they fail**
+- [ ] **Step 2: Run the focused tests and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-assets.test.ts lib/lyricforge/__tests__/project-migration.test.ts
 ```
 
-Expected: failures because creative defaults/instance fields/schema version do not exist.
+Expected: failures because schema version 3 and new fields are not implemented.
 
-- [ ] **Step 3: Extend the serializable contracts**
+- [ ] **Step 3: Implement the contracts and constructors**
 
-Use this shape in `creative-assets.ts`:
-
-```ts
-export type CreativeEasing='linear'|'ease-in'|'ease-out'|'ease-in-out';
-export interface CreativeKeyframe{id:string;timeMs:number;value:AssetParamValue;easing:CreativeEasing}
-export type ParamKeyframes=Record<string,CreativeKeyframe[]>;
-
-export interface AnimationInstance{
-  assetId:string;version:string;role:AnimationRole;enabled:boolean;
-  params:Record<string,AssetParamValue>;keyframes:ParamKeyframes;
-}
-export interface EffectInstance{
-  id:string;assetId:string;version:string;enabled:boolean;
-  params:Record<string,AssetParamValue>;keyframes:ParamKeyframes;
-}
-export interface TransitionInstance{
-  id:string;assetId:string;version:string;
-  incomingItemId:string;outgoingItemId:string;
-  durationMs:number;easing:CreativeEasing;
-  params:Record<string,AssetParamValue>;
-}
-```
-
-In `model.ts`, initialize new clips/projects without changing legacy style fields:
+`makeClip()` initializes `effects:[]` and leaves `animations` absent. `createProject()` initializes:
 
 ```ts
-// makeClip return object additions
-animations: undefined,
-effects: [],
-
-// createProject return object additions
-schemaVersion: 3,
-dependencies: [],
-masterEffects: [],
-transitions: [],
+schemaVersion:3,
+dependencies:[],
+masterEffects:[],
+transitions:[],
 ```
 
-- [ ] **Step 4: Make migration normalize only structure, not visual intent**
+Do not remove or rewrite legacy style fields.
 
-`migrateProjectDocument()` must preserve unknown fields, preserve legacy `kind:'effect'` clips, ensure every clip object has `effects:[]` when absent, and ensure project `masterEffects`, `transitions`, `dependencies` arrays exist. Do not translate legacy style animations here; that happens at runtime.
+- [ ] **Step 4: Normalize structure in `migrateProjectDocument()`**
 
-- [ ] **Step 5: Extend validation and make migration the only load boundary**
+For object-like clips, add `effects:[]` only when absent. Preserve `animations`, legacy style fields, unknown fields, and all legacy `kind:'effect'` clip data. Normalize `dependencies` exactly as today. Normalize `masterEffects` and `transitions` only enough for Zod validation to decide validity; migration does not silently drop malformed creative instances.
 
-Define Zod schemas for creative keyframes/instances and parse migrated input:
+- [ ] **Step 5: Extend Zod validation and wire migration before all project parsing**
+
+Use the existing error wording exactly:
 
 ```ts
 export function validateProject(data:unknown):Project{
   const migrated=migrateProjectDocument(data);
   const res=schema.safeParse(migrated);
-  if(!res.success) throw new Error(/* existing message format */);
-  // existing cross-reference checks remain
-  return res.data as unknown as Project;
+  if(!res.success){
+    throw new Error('Invalid project file: '+res.error.issues[0].path.join('.')+' '+res.error.issues[0].message);
+  }
+  const p=res.data as unknown as Project;
+  // retain the existing duplicate-ID, media-reference, track-reference,
+  // font-family, animation-name, size, and scale checks below this point.
+  return p;
 }
 ```
 
-`openProject()` must also validate/migrate IndexedDB data before `hydrate()` instead of casting stored bytes straight to `Project`:
+`openProject()` must validate stored IndexedDB data before hydration:
 
 ```ts
-const raw=await transaction<unknown>(['projects'],'readonly',t=>t.objectStore('projects').get(id));
-if(!raw)throw new Error('This project was not found on this device.');
-const p=validateProject(raw);
-await hydrate(p);
-return p;
+export async function openProject(id:string){
+  const raw=await transaction<unknown>(['projects'],'readonly',t=>t.objectStore('projects').get(id));
+  if(!raw)throw new Error('This project was not found on this device.');
+  const p=validateProject(raw);
+  await hydrate(p);
+  return p;
+}
 ```
 
-- [ ] **Step 6: Add validation tests**
+- [ ] **Step 6: Add concrete validation tests**
 
-`project-creative-validation.test.ts` must prove a valid effect stack/transition survives validation, malformed creative entries are rejected by the project schema, a legacy project migrates before parse, and legacy effect clips survive unchanged.
+```ts
+it('accepts valid creative stacks and explicit transitions',()=>{
+  const p=createProject('Creative');
+  const track=makeTrack('text','Text');
+  const a=makeClip('text',track.id,0,1000,'A');
+  const b=makeClip('text',track.id,1000,2000,'B');
+  a.effects=[{id:'fx-1',assetId:'builtin.effect.glow',version:'1.0.0',enabled:true,params:{intensity:.5},keyframes:{}}];
+  p.tracks.unshift(track);p.clips=[a,b];
+  p.transitions=[{id:'tr-1',assetId:'builtin.transition.crossfade',version:'1.0.0',outgoingItemId:a.id,incomingItemId:b.id,durationMs:500,easing:'ease-in-out',params:{}}];
+  const validated=validateProject(structuredClone(p));
+  expect(validated.clips[0].effects[0].id).toBe('fx-1');
+  expect(validated.transitions[0].id).toBe('tr-1');
+});
 
-- [ ] **Step 7: Run focused and full tests**
+it('rejects malformed creative instance ids',()=>{
+  const p=createProject('Bad');
+  p.masterEffects=[{id:'',assetId:'builtin.effect.glow',version:'1.0.0',enabled:true,params:{},keyframes:{}}];
+  expect(()=>validateProject(p)).toThrow(/Invalid project file/);
+});
+```
+
+Also retain an assertion that a legacy effect clip survives `validateProject()` and that an old project lacking creative fields gets defaults before parse.
+
+- [ ] **Step 7: Verify focused + regressions**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-assets.test.ts lib/lyricforge/__tests__/project-migration.test.ts lib/lyricforge/__tests__/project-creative-validation.test.ts
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 ```
 
 - [ ] **Step 8: Commit**
@@ -213,7 +287,7 @@ git commit -m "feat: add creative runtime project model"
 
 ---
 
-### Task 2: Build the trusted creative registry and complete built-in preset metadata
+### Task 2: Build the trusted registry and complete built-in preset metadata
 
 **Files:**
 - Create: `lib/lyricforge/creative-registry.ts`
@@ -221,321 +295,496 @@ git commit -m "feat: add creative runtime project model"
 - Create: `lib/lyricforge/__tests__/creative-registry.test.ts`
 - Create: `lib/lyricforge/__tests__/creative-presets.test.ts`
 
-**Interfaces:**
-- Produces `CreativeQuality = 'preview-low'|'preview-high'|'export'`.
-- Produces typed parameter definitions for number, boolean, select, and color values.
-- Produces `CreativeDefinition` metadata with stable ID/type/version/name/targets/params/runtime/quality/compatibility aliases.
-- Produces `creativeRegistry.resolve(type,id,version)` and `creativeRegistry.normalizeParams(def,raw)`.
-- Built-ins use `1.0.0` initially and IDs prefixed `builtin.animation.`, `builtin.effect.`, or `builtin.transition.`.
+**Registry contract:**
+
+```ts
+export type ParamDefinition=
+ | {kind:'number';default:number;min:number;max:number;step:number;keyframeable:boolean;neutral?:number}
+ | {kind:'boolean';default:boolean;keyframeable:false;neutral?:boolean}
+ | {kind:'select';default:string;options:readonly string[];keyframeable:false;neutral?:string}
+ | {kind:'color';default:string;keyframeable:boolean;interpolation:'color'|'step';neutral?:string};
+
+export interface CreativeDefinition{
+  id:string;
+  type:'text-animation'|'effect'|'transition';
+  version:string;
+  name:string;
+  targets:readonly CreativeTarget[];
+  roles?:readonly AnimationRole[];
+  runtime:string;
+  params:Record<string,ParamDefinition>;
+  quality:{
+    'preview-low':'full'|'simplified'|'bypass';
+    'preview-high':'full'|'simplified'|'bypass';
+    export:'full';
+  };
+  compatibleVersions?:readonly string[];
+  bypassWhenNeutral?:readonly string[];
+}
+```
 
 - [ ] **Step 1: Write failing registry tests**
 
 ```ts
-it('resolves exact versions and refuses undeclared version substitution',()=>{
+it('resolves exact versions and refuses undeclared substitutions',()=>{
   expect(creativeRegistry.resolve('effect','builtin.effect.glow','1.0.0')?.id).toBe('builtin.effect.glow');
   expect(creativeRegistry.resolve('effect','builtin.effect.glow','9.0.0')).toBeNull();
 });
 
-it('clamps numbers and applies defaults without preserving executable fields',()=>{
+it('normalizes only declared parameters',()=>{
   const def=creativeRegistry.resolve('effect','builtin.effect.glow','1.0.0')!;
-  expect(creativeRegistry.normalizeParams(def,{intensity:999,unknown:'x'})).toMatchObject({intensity:1});
-  expect(creativeRegistry.normalizeParams(def,{intensity:999,unknown:'x'})).not.toHaveProperty('unknown');
+  const params=creativeRegistry.normalizeParams(def,{intensity:999,unknown:'not executable'});
+  expect(params.intensity).toBe(1);
+  expect(params).not.toHaveProperty('unknown');
 });
 ```
 
-- [ ] **Step 2: Run and confirm module-not-found failures**
+- [ ] **Step 2: Run and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-registry.test.ts lib/lyricforge/__tests__/creative-presets.test.ts
 ```
 
-- [ ] **Step 3: Implement registry contracts**
+- [ ] **Step 3: Implement registry lookup and parameter normalization**
 
-Use explicit trusted runtime operation strings declared in source code:
+Version lookup is exact or explicitly compatible:
 
 ```ts
-export type ParamDefinition=
- | {kind:'number';default:number;min:number;max:number;step:number;keyframeable:boolean}
- | {kind:'boolean';default:boolean;keyframeable:false}
- | {kind:'select';default:string;options:readonly string[];keyframeable:false}
- | {kind:'color';default:string;keyframeable:boolean};
-
-export interface CreativeDefinition{
- id:string;type:'text-animation'|'effect'|'transition';version:string;name:string;
- targets:readonly string[];runtime:string;params:Record<string,ParamDefinition>;
- quality:{'preview-low':'full'|'simplified'|'bypass';'preview-high':'full'|'simplified'|'bypass';export:'full'};
- compatibleVersions?:readonly string[];
+resolve(type:CreativeDefinition['type'],id:string,version:string){
+  const defs=this.byKey.get(`${type}:${id}`)??[];
+  return defs.find(d=>d.version===version)
+    ?? defs.find(d=>d.compatibleVersions?.includes(version))
+    ?? null;
 }
 ```
 
-Registry compatibility is exact or explicitly listed:
+Number parameters clamp to min/max. Select parameters reject unknown values back to the trusted default. Colors accept only `#rrggbb`; invalid colors fall back to the trusted default. Unknown project parameter keys are ignored for execution but remain untouched in serialized project data.
+
+- [ ] **Step 4: Register these exact animation IDs**
+
+Use a small source-code factory and these explicit IDs/runtime operations:
 
 ```ts
-resolve(type,id,version){
- const defs=this.byKey.get(`${type}:${id}`)||[];
- return defs.find(d=>d.version===version) ?? defs.find(d=>d.compatibleVersions?.includes(version)) ?? null;
-}
+const animationSpecs=[
+ ['fade','animation.fade',['intro','outro']],
+ ['slide','animation.slide',['intro','outro']],
+ ['blur','animation.blur',['intro','outro']],
+ ['scale-punch','animation.scale-punch',['intro','outro']],
+ ['tracking','animation.tracking',['intro','outro']],
+ ['word-pop','animation.word-pop',['intro','outro']],
+ ['character-cascade','animation.character-cascade',['intro','outro']],
+ ['spin','animation.spin',['intro','outro']],
+ ['tilt-3d','animation.tilt-3d',['intro','outro']],
+ ['wipe-reveal','animation.wipe-reveal',['intro','outro']],
+ ['pixel-dissolve','animation.pixel-dissolve',['intro','outro']],
+ ['glitch-reveal','animation.glitch-reveal',['intro','outro']],
+ ['pulse','animation.pulse',['loop']],
+ ['float','animation.float',['loop']],
+ ['bounce','animation.bounce',['loop']],
+ ['shake','animation.shake',['loop']],
+ ['wave','animation.wave',['loop']],
+ ['neon-flicker','animation.neon-flicker',['loop']],
+ ['breathing-glow','animation.breathing-glow',['loop']],
+ ['rgb-drift','animation.rgb-drift',['loop']],
+ ['sway-3d','animation.sway-3d',['loop']],
+ ['beat-pulse','animation.beat-pulse',['loop']],
+] as const;
 ```
 
-- [ ] **Step 4: Register every approved built-in animation**
+All animation definitions target `['lyrics','text']`. Common params are concrete and trusted:
 
-Intro/Outro definitions: Fade, Slide, Blur, Scale Punch, Tracking Expand/Contract, Word Pop, Character Cascade, Spin, 3D Tilt approximation, Wipe Reveal, Pixel Dissolve, Glitch Reveal.
+```ts
+const animationCommon={
+ durationMs:num(350,50,4000,10,true),
+ delayMs:num(0,0,3000,10,true),
+ intensity:num(.5,0,2,.05,true),
+ direction:select('forward',['forward','reverse']),
+};
+```
 
-Loop definitions: Pulse, Float, Bounce, Shake, Wave, Neon Flicker, Breathing Glow, RGB Drift, 3D Sway approximation, Beat Pulse.
+Character/word stagger presets additionally define `staggerMs:num(35,0,300,1,true)`. Loop presets additionally define `periodMs:num(1200,100,10000,10,true)`. Beat Pulse defines `sensitivity:num(1,.1,5,.05,true)`.
 
-Each entry must specify supported roles/targets, defaults, parameter ranges, runtime operation, and quality behavior. Shared runtime operations may power multiple display presets; project IDs remain distinct.
+- [ ] **Step 5: Register these exact effect IDs and default parameter schemas**
 
-- [ ] **Step 5: Register every approved built-in effect**
+```ts
+const effectSpecs={
+ glow:{runtime:'effect.glow',params:{radius:num(18,0,80,1,true),intensity:num(.6,0,1,.01,true)}},
+ bloom:{runtime:'effect.bloom',params:{radius:num(22,0,80,1,true),intensity:num(.45,0,1,.01,true)}},
+ 'drop-shadow':{runtime:'effect.drop-shadow',params:{blur:num(14,0,60,1,true),offsetX:num(0,-80,80,1,true),offsetY:num(8,-80,80,1,true),opacity:num(.55,0,1,.01,true),color:color('#000000')}},
+ outline:{runtime:'effect.outline',params:{width:num(3,0,20,.5,true),opacity:num(1,0,1,.01,true),color:color('#ffffff')}},
+ blur:{runtime:'effect.blur',params:{radius:num(8,0,60,.5,true)}},
+ sharpen:{runtime:'effect.sharpen',params:{amount:num(.4,0,1,.01,true)}},
+ grain:{runtime:'effect.grain',params:{amount:num(.2,0,1,.01,true),size:num(1,1,8,1,false)}},
+ vignette:{runtime:'effect.vignette',params:{amount:num(.35,0,1,.01,true),softness:num(.55,.05,1,.01,true)}},
+ brightness:{runtime:'effect.brightness',params:{amount:num(1,0,3,.01,true)}},
+ contrast:{runtime:'effect.contrast',params:{amount:num(1,0,3,.01,true)}},
+ saturation:{runtime:'effect.saturation',params:{amount:num(1,0,3,.01,true)}},
+ 'hue-shift':{runtime:'effect.hue-shift',params:{degrees:num(0,-180,180,1,true)}},
+ duotone:{runtime:'effect.duotone',params:{shadow:color('#182030'),highlight:color('#f2b66d'),amount:num(1,0,1,.01,true)}},
+ posterize:{runtime:'effect.posterize',params:{levels:num(6,2,32,1,true)}},
+ pixelate:{runtime:'effect.pixelate',params:{size:num(8,1,80,1,true)}},
+ 'rgb-split':{runtime:'effect.rgb-split',params:{amount:num(6,0,40,.5,true)}},
+ vhs:{runtime:'effect.vhs',params:{scanlines:num(.45,0,1,.01,true),noise:num(.2,0,1,.01,true),jitter:num(.15,0,1,.01,true)}},
+ 'noise-displacement':{runtime:'effect.noise-displacement',params:{amount:num(8,0,60,.5,true),scale:num(24,2,128,1,false)}},
+ shake:{runtime:'effect.shake',params:{amount:num(8,0,80,.5,true),speed:num(8,.1,40,.1,true)}},
+ 'zoom-pulse':{runtime:'effect.zoom-pulse',params:{amount:num(.08,0,.5,.01,true),periodMs:num(800,100,5000,10,true)}},
+ 'light-streak':{runtime:'effect.light-streak',params:{intensity:num(.4,0,1,.01,true),angle:num(25,-180,180,1,true)}},
+ glitch:{runtime:'effect.glitch',params:{intensity:num(.35,0,1,.01,true),rate:num(.25,0,1,.01,true)}},
+ 'beat-reactive':{runtime:'effect.beat-reactive',params:{intensity:num(.5,0,2,.01,true),sensitivity:num(1,.1,5,.05,true)}},
+} as const;
+```
 
-Register: Glow, Bloom, Drop Shadow, Enhanced Stroke/Outline, Blur, Sharpen, Grain, Vignette, Brightness, Contrast, Saturation, Hue Shift, Duotone, Posterize, Pixelation, RGB Split/Chromatic Aberration, VHS/Scanlines, Noise Displacement, Shake/Jitter, Zoom Pulse, Light Streak/Lens, Glitch, Beat-reactive intensity.
+Definitions target supported visual clip kinds. Master-safe definitions explicitly include `master`; any effect that depends on clip geometry rather than a complete scene must omit `master`. Mark neutral parameters with `neutral` and list only safe ones in `bypassWhenNeutral`.
 
-Use target scopes that exclude audio. Master-compatible entries explicitly include `master` in their targets.
+- [ ] **Step 6: Register these exact transition IDs**
 
-- [ ] **Step 6: Register every approved built-in transition**
+```ts
+const transitionSpecs={
+ crossfade:{runtime:'transition.crossfade',params:{}},
+ 'dip-black':{runtime:'transition.dip-black',params:{hold:num(.15,0,.8,.01,true)}},
+ 'dip-white':{runtime:'transition.dip-white',params:{hold:num(.15,0,.8,.01,true)}},
+ 'blur-dissolve':{runtime:'transition.blur-dissolve',params:{radius:num(24,0,80,1,true)}},
+ push:{runtime:'transition.push',params:{direction:select('left',['left','right','up','down'])}},
+ slide:{runtime:'transition.slide',params:{direction:select('left',['left','right','up','down'])}},
+ wipe:{runtime:'transition.wipe',params:{direction:select('left',['left','right','up','down']),softness:num(.05,0,.5,.01,true)}},
+ zoom:{runtime:'transition.zoom',params:{amount:num(.25,0,1,.01,true)}},
+ spin:{runtime:'transition.spin',params:{turns:num(.3,-2,2,.01,true)}},
+ flash:{runtime:'transition.flash',params:{strength:num(.7,0,1,.01,true)}},
+ glitch:{runtime:'transition.glitch',params:{intensity:num(.5,0,1,.01,true)}},
+ 'rgb-split':{runtime:'transition.rgb-split',params:{amount:num(12,0,60,.5,true)}},
+ 'pixel-dissolve':{runtime:'transition.pixel-dissolve',params:{cellSize:num(10,2,80,1,false)}},
+ 'film-burn':{runtime:'transition.film-burn',params:{intensity:num(.75,0,1,.01,true)}},
+ 'light-leak':{runtime:'transition.light-leak',params:{intensity:num(.7,0,1,.01,true)}},
+ 'mask-reveal':{runtime:'transition.mask-reveal',params:{direction:select('left',['left','right','up','down']),softness:num(.08,0,.5,.01,true)}},
+} as const;
+```
 
-Register: Crossfade, Dip to Black, Dip to White, Blur Dissolve, Push, Slide, Directional Wipe, Zoom, Spin, Flash, Glitch, RGB Split, Pixel Dissolve, Film Burn approximation, Light Leak approximation, Mask Reveal.
+All transition definitions support the compatible visual clip kinds from Task 5 and export quality `full`.
 
-- [ ] **Step 7: Add registry completeness tests**
+- [ ] **Step 7: Add completeness tests**
 
-`creative-presets.test.ts` must assert every ID is unique, every version is nonblank, every parameter default validates against its schema, every expensive preset declares all three quality entries, and the expected approved IDs are present.
+Assert unique IDs, nonblank versions, valid defaults, every runtime operation is nonblank, every animation's `roles` are compatible with its declared list, and the exact animation/effect/transition slug sets above are present.
 
-- [ ] **Step 8: Run tests and commit**
+- [ ] **Step 8: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-registry.test.ts lib/lyricforge/__tests__/creative-presets.test.ts
 pnpm test -- --run
+pnpm run typecheck
 git add lib/lyricforge/creative-registry.ts lib/lyricforge/creative-presets.ts lib/lyricforge/__tests__/creative-registry.test.ts lib/lyricforge/__tests__/creative-presets.test.ts
 git commit -m "feat: add trusted creative preset registry"
 ```
 
 ---
 
-### Task 3: Add deterministic creative parameter keyframes and Intro/Loop/Outro animation evaluation
+### Task 3: Add deterministic parameter keyframes and Intro/Loop/Outro animation evaluation
 
 **Files:**
 - Create: `lib/lyricforge/creative-keyframes.ts`
 - Create: `lib/lyricforge/animation-runtime.ts`
 - Create: `lib/lyricforge/__tests__/creative-keyframes.test.ts`
 - Create: `lib/lyricforge/__tests__/animation-runtime.test.ts`
-- Modify: `lib/lyricforge/animation.ts`
+- Modify: `lib/lyricforge/animation.ts` only to export reusable color interpolation if useful; do not move the new subsystem into this file.
 
-**Interfaces:**
-- Produces `evaluateParamKeyframes(base,keyframes,timeMs,definition)`.
-- Produces `AnimationRenderState` with `x,y,scaleX,scaleY,rotation,alpha,blur,reveal,tracking,colorShift,glow`.
-- Produces `evaluateTextAnimations(project,clip,time,quality)`.
-- Produces `legacyAnimationInstances(project,clip)` compatibility mapping without mutating the project.
-
-- [ ] **Step 1: Write failing interpolation tests**
+**Runtime output:**
 
 ```ts
-it('interpolates numeric values and uses stepped strings',()=>{
- expect(evaluateParamKeyframes(0,[
-  {id:'a',timeMs:0,value:0,easing:'linear'},
-  {id:'b',timeMs:1000,value:10,easing:'linear'}
- ],500,{kind:'number',default:0,min:0,max:10,step:.1,keyframeable:true})).toBe(5);
- expect(evaluateParamKeyframes('left',[
-  {id:'a',timeMs:0,value:'left',easing:'linear'},
-  {id:'b',timeMs:1000,value:'right',easing:'linear'}
- ],500,{kind:'select',default:'left',options:['left','right'],keyframeable:false})).toBe('left');
+export interface AnimationRenderState{
+ x:number;y:number;
+ scaleX:number;scaleY:number;
+ rotation:number;
+ alpha:number;
+ blur:number;
+ reveal:number;
+ tracking:number;
+ colorShift:number;
+ glow:number;
+}
+```
+
+- [ ] **Step 1: Write failing keyframe tests**
+
+```ts
+it('interpolates numeric parameters',()=>{
+  const def={kind:'number',default:0,min:0,max:10,step:.1,keyframeable:true} as const;
+  expect(evaluateParamKeyframes(0,[
+    {id:'a',timeMs:0,value:0,easing:'linear'},
+    {id:'b',timeMs:1000,value:10,easing:'linear'},
+  ],500,def)).toBe(5);
 });
 
-it('uses the last normalized entry at duplicate times',()=>{
- const frames=[
-  {id:'a',timeMs:100,value:1,easing:'linear' as const},
-  {id:'b',timeMs:100,value:2,easing:'linear' as const}
- ];
- expect(evaluateParamKeyframes(0,frames,100,{kind:'number',default:0,min:0,max:5,step:.1,keyframeable:true})).toBe(2);
+it('uses stepped values for select parameters and last entry at duplicate time',()=>{
+  const selectDef={kind:'select',default:'left',options:['left','right'] as const,keyframeable:false} as const;
+  expect(evaluateParamKeyframes('left',[
+    {id:'a',timeMs:0,value:'left',easing:'linear'},
+    {id:'b',timeMs:1000,value:'right',easing:'linear'},
+  ],500,selectDef)).toBe('left');
+  const numberDef={kind:'number',default:0,min:0,max:5,step:.1,keyframeable:true} as const;
+  expect(evaluateParamKeyframes(0,[
+    {id:'a',timeMs:100,value:1,easing:'linear'},
+    {id:'b',timeMs:100,value:2,easing:'linear'},
+  ],100,numberDef)).toBe(2);
 });
 ```
 
-- [ ] **Step 2: Write animation timing/legacy tests**
+Add a color test proving `interpolation:'color'` interpolates valid hex colors while `interpolation:'step'` steps.
 
-Prove Intro time is relative to the Intro window, Loop remains active in the interior, Outro runs backward from clip end, short clips compose Intro and Outro instead of replacing one, and a legacy `entrance:'Fade' / idle:'Pulse' / exit:'Fade'` clip resolves to equivalent runtime states without changing its stored style.
+- [ ] **Step 2: Write failing role timing and compatibility tests**
 
-- [ ] **Step 3: Run focused tests and confirm failures**
+Use a 4-second text clip. Assert Intro uses clip-start-relative role time, Loop evaluates the active interior, Outro evaluates from the clip end, and a 200 ms clip with 350 ms Intro/Outro combines both contributions instead of discarding one.
+
+Legacy precedence must be explicit:
+
+```ts
+it('uses canonical role data only for roles that exist',()=>{
+  const p=createProject();
+  const c=makeClip('text',makeTrack('text','T').id,0,4000,'hello');
+  c.style={entrance:'Fade',idle:'Pulse',exit:'Fade'};
+  c.animations={intro:{assetId:'builtin.animation.slide',version:'1.0.0',role:'intro',enabled:true,params:{durationMs:350,delayMs:0,intensity:.5,direction:'forward'},keyframes:{}}};
+  const resolved=resolveAnimationRoles(p,c,1000,'preview-high');
+  expect(resolved.sources).toEqual({intro:'canonical',loop:'legacy',outro:'legacy'});
+});
+```
+
+- [ ] **Step 3: Run focused tests and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-keyframes.test.ts lib/lyricforge/__tests__/animation-runtime.test.ts
 ```
 
-- [ ] **Step 4: Implement keyframe normalization/evaluation**
+- [ ] **Step 4: Implement keyframe normalization**
 
-Normalize keyframe `timeMs` to integer milliseconds; clamp to the caller-provided role/scope window; sort by `(timeMs, originalIndex)` so the last duplicate wins. Numeric values interpolate with the existing `ease()` function. Non-numeric values use the previous value until the later keyframe time is reached.
+Rules: integer `timeMs`, stable sort by `(timeMs, originalIndex)`, last duplicate wins, numeric interpolation uses existing `ease()`, colors interpolate only when the trusted schema says `interpolation:'color'`, all other primitives step. The caller clamps role/scope time before evaluation.
 
-- [ ] **Step 5: Implement animation state composition**
+- [ ] **Step 5: Implement canonical animation operations and composition**
 
-Use identity state:
+Identity:
 
 ```ts
 export const IDENTITY_ANIMATION:AnimationRenderState={
- x:0,y:0,scaleX:1,scaleY:1,rotation:0,alpha:1,blur:0,reveal:1,
- tracking:0,colorShift:0,glow:0
+  x:0,y:0,scaleX:1,scaleY:1,rotation:0,alpha:1,
+  blur:0,reveal:1,tracking:0,colorShift:0,glow:0,
 };
 ```
 
-Compose independent roles deterministically: translations/rotations/blur/tracking/glow add, scale and alpha multiply, reveal takes the minimum. Runtime operations are selected from the trusted registry definition, never from project-provided code.
+Composition rules: x/y/rotation/blur/tracking/colorShift/glow add; scale and alpha multiply; reveal uses `Math.min`. Intro and Outro therefore both contribute on short clips.
 
-- [ ] **Step 6: Keep legacy `animationState()` available for emphasis compatibility**
+- [ ] **Step 6: Preserve every legacy animation name without forcing new registry entries**
 
-Do not delete the existing public helper. New Intro/Loop/Outro evaluation may reuse its math for matching legacy presets. Existing per-word `emphasis` remains on the old compatibility path in this phase.
+For any canonical role that is absent, evaluate the corresponding legacy field using the current trusted `animationState()` implementation. `entrance` -> Intro, `idle` -> Loop, `exit` -> Outro. Existing `emphasis` remains the current per-word renderer compatibility path. This preserves legacy values such as Pop, Bounce, Zoom, Typewriter, Character Reveal, Word Reveal, Stretch, Rise, and Fall even when they are not exposed as new catalog presets.
 
-- [ ] **Step 7: Run full regressions and commit**
+- [ ] **Step 7: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-keyframes.test.ts lib/lyricforge/__tests__/animation-runtime.test.ts
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 git add lib/lyricforge/creative-keyframes.ts lib/lyricforge/animation-runtime.ts lib/lyricforge/animation.ts lib/lyricforge/__tests__/creative-keyframes.test.ts lib/lyricforge/__tests__/animation-runtime.test.ts
 git commit -m "feat: add creative text animation runtime"
 ```
 
 ---
 
-### Task 4: Add ordered effect evaluation, quality tiers, diagnostics, and quarantine contracts
+### Task 4: Add ordered effect evaluation, quality tiers, and diagnostics
 
 **Files:**
 - Create: `lib/lyricforge/effect-runtime.ts`
 - Create: `lib/lyricforge/__tests__/effect-runtime.test.ts`
 
 **Interfaces:**
-- Produces `ResolvedEffect { instanceId,assetId,runtime,params,quality,scope }`.
-- Produces `resolveEffectStack(instances,context)` preserving array order.
-- Produces `CreativeDiagnostic { kind:'missing'|'incompatible'|'runtime'|'invalid-transition'; instanceId:string; assetId?:string; message:string }`.
-- Renderer owns quarantine sets; pure runtime only returns unresolved diagnostics.
-
-- [ ] **Step 1: Write failing effect-plan tests**
 
 ```ts
-it('keeps stack order and bypasses disabled effects',()=>{
- const stack=[effect('a','builtin.effect.blur'),{...effect('b','builtin.effect.glow'),enabled:false},effect('c','builtin.effect.grain')];
- const result=resolveEffectStack(stack,{scope:'clip',targetKind:'text',timeMs:500,scopeDurationMs:2000,quality:'preview-high',audioReactive:0});
- expect(result.effects.map(x=>x.instanceId)).toEqual(['a','c']);
+export interface CreativeDiagnostic{
+  kind:'missing'|'incompatible'|'runtime'|'invalid-transition';
+  instanceId:string;
+  assetId?:string;
+  message:string;
+}
+
+export interface ResolvedEffect{
+  instanceId:string;
+  assetId:string;
+  runtime:string;
+  params:Record<string,AssetParamValue>;
+  quality:'full'|'simplified';
+  scope:'clip'|'master';
+}
+```
+
+Test helpers must be concrete:
+
+```ts
+const effect=(id:string,assetId:string):EffectInstance=>({
+ id,assetId,version:'1.0.0',enabled:true,params:{},keyframes:{}
+});
+const clipContext:EffectResolveContext={
+ scope:'clip',targetKind:'text',timeMs:500,scopeDurationMs:2000,
+ quality:'preview-high',audioReactive:0
+};
+```
+
+- [ ] **Step 1: Write failing stack tests**
+
+```ts
+it('preserves array order and bypasses disabled instances',()=>{
+  const stack=[effect('a','builtin.effect.blur'),{...effect('b','builtin.effect.glow'),enabled:false},effect('c','builtin.effect.grain')];
+  const result=resolveEffectStack(stack,clipContext);
+  expect(result.effects.map(x=>x.instanceId)).toEqual(['a','c']);
 });
 
 it('keeps duplicate preset instances independent',()=>{
- const result=resolveEffectStack([
-  {...effect('a','builtin.effect.glow'),params:{intensity:.2}},
-  {...effect('b','builtin.effect.glow'),params:{intensity:.8}}
- ],context);
- expect(result.effects.map(x=>x.params.intensity)).toEqual([.2,.8]);
+  const result=resolveEffectStack([
+    {...effect('a','builtin.effect.glow'),params:{intensity:.2}},
+    {...effect('b','builtin.effect.glow'),params:{intensity:.8}},
+  ],clipContext);
+  expect(result.effects.map(x=>x.params.intensity)).toEqual([.2,.8]);
 });
 ```
 
-Also test missing version => diagnostic + bypass; unsupported target => diagnostic + bypass; clip-relative effect keyframes; master keyframes use project time; `preview-low` follows the preset's declared full/simplified/bypass rule.
+Also test missing version => diagnostic+bypass, unsupported target => diagnostic+bypass, clip keyframes use clip-relative time, master keyframes use project time, and `preview-low` follows the registry's full/simplified/bypass policy.
 
-- [ ] **Step 2: Run and confirm module-not-found failure**
+- [ ] **Step 2: Run focused test and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/effect-runtime.test.ts
 ```
 
-- [ ] **Step 3: Implement pure ordered plan resolution**
+- [ ] **Step 3: Implement pure effect-plan resolution**
 
-`resolveEffectStack()` must never mutate instances, must normalize parameters through the registry, must evaluate only parameter definitions marked keyframeable, and must return diagnostics rather than throw for missing/incompatible creative definitions.
+`resolveEffectStack()` does not mutate project instances and never executes drawing code. It skips disabled instances before registry work, resolves exact/compatible definitions, normalizes parameters, evaluates trusted keyframeable fields, determines quality behavior, and returns diagnostics rather than throwing for missing/incompatible definitions.
 
-- [ ] **Step 4: Add zero-cost bypass rules**
+Neutral bypass is used only when `definition.bypassWhenNeutral` explicitly lists fields and every listed field equals its trusted neutral value. Do not infer neutral state for arbitrary colors/enums.
 
-Skip disabled effects before registry/parameter work. For explicit intensity/amount parameters equal to their neutral value, skip only definitions whose metadata marks the neutral value as bypass-safe. Do not infer neutrality for color/enum effects.
-
-- [ ] **Step 5: Run full tests and commit**
+- [ ] **Step 4: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/effect-runtime.test.ts
 pnpm test -- --run
+pnpm run typecheck
 git add lib/lyricforge/effect-runtime.ts lib/lyricforge/__tests__/effect-runtime.test.ts
 git commit -m "feat: resolve ordered creative effect stacks"
 ```
 
 ---
 
-### Task 5: Add explicit same-track transition timing and evaluation
+### Task 5: Add explicit transition adjacency, virtual-overlap timing, and source sampling
 
 **Files:**
 - Create: `lib/lyricforge/transition-runtime.ts`
 - Create: `lib/lyricforge/__tests__/transition-runtime.test.ts`
 
-**Interfaces:**
-- Produces `isValidTransitionPair(project,transition)`.
-- Produces `transitionWindow(project,transition,mediaDurationByClip?)` returning `{cutMs,startMs,endMs,effectiveDurationMs}` or an invalid diagnostic.
-- Produces `resolveTransition(project,transition,timeMs,quality,mediaDurationByClip?)` returning normalized progress and trusted runtime data.
-- Supported clip kinds are exactly `lyrics`, `text`, `image`, `video`, `visualizer`.
-
-- [ ] **Step 1: Write failing adjacency and 1 ms tolerance tests**
+Supported clip kinds are exactly:
 
 ```ts
-it('accepts adjacent touching same-track clips within one millisecond',()=>{
- const p=pairProject({aEnd:1000,bStart:1001});
- expect(isValidTransitionPair(p,transition('a','b')).valid).toBe(true);
+export const TRANSITION_KINDS=['lyrics','text','image','video','visualizer'] as const;
+```
+
+- [ ] **Step 1: Add concrete test helpers and failing adjacency tests**
+
+```ts
+function transition(outgoingItemId='a',incomingItemId='b'):TransitionInstance{
+  return {id:'tr',assetId:'builtin.transition.crossfade',version:'1.0.0',outgoingItemId,incomingItemId,durationMs:1000,easing:'linear',params:{}};
+}
+
+function pairProject(opts:{aStart?:number;aEnd?:number;bStart?:number;bEnd?:number;differentTracks?:boolean}={}):Project{
+  const p=createProject('pair');
+  const ta=makeTrack('text','A');
+  const tb=opts.differentTracks?makeTrack('text','B'):ta;
+  const a=makeClip('text',ta.id,opts.aStart??0,opts.aEnd??1000,'A');a.id='a';
+  const b=makeClip('text',tb.id,opts.bStart??1000,opts.bEnd??2000,'B');b.id='b';
+  p.tracks=[ta,...(tb===ta?[]:[tb])];p.clips=[a,b];
+  return p;
+}
+```
+
+```ts
+it('accepts a touching same-track pair within one millisecond',()=>{
+  expect(isValidTransitionPair(pairProject({aEnd:1000,bStart:1001}),transition()).valid).toBe(true);
 });
 
-it('rejects gaps, overlaps, cross-track pairs, and non-adjacent retargeting',()=>{
- expect(isValidTransitionPair(pairProject({aEnd:1000,bStart:1002}),transition('a','b')).valid).toBe(false);
- expect(isValidTransitionPair(pairProject({aEnd:1100,bStart:1000}),transition('a','b')).valid).toBe(false);
- expect(isValidTransitionPair(pairProject({differentTracks:true}),transition('a','b')).valid).toBe(false);
+it('rejects gaps, overlaps, cross-track and non-adjacent pairs',()=>{
+  expect(isValidTransitionPair(pairProject({aEnd:1000,bStart:1002}),transition()).valid).toBe(false);
+  expect(isValidTransitionPair(pairProject({aEnd:1100,bStart:1000}),transition()).valid).toBe(false);
+  expect(isValidTransitionPair(pairProject({differentTracks:true}),transition()).valid).toBe(false);
 });
 ```
 
-- [ ] **Step 2: Write centered overlap/clamp tests**
+Add a third clip between A and B and prove the old A->B transition becomes invalid instead of retargeting.
+
+- [ ] **Step 2: Write failing window/clamp/sampling tests**
 
 ```ts
-it('centers a one-second transition on the cut',()=>{
- const w=transitionWindow(pairProject({aEnd:5000,bStart:5000}),{...transition('a','b'),durationMs:1000});
- expect(w).toMatchObject({cutMs:5000,startMs:4500,endMs:5500,effectiveDurationMs:1000});
+it('centers a one-second window on the cut',()=>{
+  const w=transitionWindow(pairProject({aEnd:5000,bStart:5000}),{...transition(),durationMs:1000});
+  expect(w).toMatchObject({cutMs:5000,startMs:4500,endMs:5500,effectiveDurationMs:1000});
 });
 
 it('clamps effective duration without rewriting requested duration',()=>{
- const tr={...transition('a','b'),durationMs:2000};
- const w=transitionWindow(pairProject({aStart:4500,aEnd:5000,bStart:5000,bEnd:5400}),tr);
- expect(w?.effectiveDurationMs).toBe(800);
- expect(tr.durationMs).toBe(2000);
+  const tr={...transition(),durationMs:2000};
+  const w=transitionWindow(pairProject({aStart:4500,aEnd:5000,bStart:5000,bEnd:5400}),tr)!;
+  expect(w.effectiveDurationMs).toBe(800);
+  expect(tr.durationMs).toBe(2000);
+});
+
+it('holds source sampling at clip boundaries across the virtual overlap',()=>{
+  const p=pairProject({aStart:0,aEnd:1000,bStart:1000,bEnd:2000});
+  const w=transitionWindow(p,transition())!;
+  expect(transitionSampleTimes(p,transition(),750,w)).toEqual({outgoingMs:750,incomingMs:1000});
+  expect(transitionSampleTimes(p,transition(),1250,w)).toEqual({outgoingMs:999,incomingMs:1250});
 });
 ```
 
-- [ ] **Step 3: Run focused tests and confirm failure**
+- [ ] **Step 3: Run focused test and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/transition-runtime.test.ts
 ```
 
-- [ ] **Step 4: Implement canonical adjacency resolution**
+- [ ] **Step 4: Implement canonical adjacency**
 
-For the outgoing clip's track, sort compatible clips by `start`, then `end`, then stable original project order. The transition is valid only if incoming is the immediate next compatible clip and the touching-cut rule passes. Never relink IDs automatically.
+Within the outgoing clip's track, sort compatible clips by `start`, then `end`, then original project array index. Incoming must be the immediate next compatible clip. Require same track and the 1 ms touching-cut rule. Never rewrite IDs.
 
-- [ ] **Step 5: Implement media-aware effective duration**
+- [ ] **Step 5: Implement effective duration and media limits**
 
-Core clamp:
+Base clamp:
 
 ```ts
 const effectiveDurationMs=Math.max(0,Math.min(
- transition.durationMs,
- 2*outgoingAvailableMs,
- 2*incomingAvailableMs
+  transition.durationMs,
+  2*outgoingAvailableMs,
+  2*incomingAvailableMs,
 ));
 ```
 
-For non-looping video, constrain available time by source offset/media duration when media duration is known. Unknown media duration may use clip timing until the renderer supplies decoded metadata; if a decoded source later yields zero usable time, mark invalid and hard-cut.
+`outgoingAvailableMs = cut - outgoing.start`; `incomingAvailableMs = incoming.end - cut`. For non-looping video, when decoded source duration is known, additionally clamp usable duration to the source duration remaining after the clip's `offset`. If usable duration becomes zero, return an invalid diagnostic and hard-cut.
 
-- [ ] **Step 6: Implement normalized transition progress**
+- [ ] **Step 6: Implement sampling and progress**
+
+For valid window `w`:
 
 ```ts
-const raw=(timeMs-window.startMs)/Math.max(1,window.effectiveDurationMs);
+const outgoingMs=clamp(Math.min(timeMs,w.cutMs-1),outgoing.start,outgoing.end-1);
+const incomingMs=clamp(Math.max(timeMs,w.cutMs),incoming.start,incoming.end-1);
+const raw=(timeMs-w.startMs)/Math.max(1,w.effectiveDurationMs);
 const progress=ease(clamp(raw,0,1),transition.easing);
 ```
 
-Resolve the trusted transition definition/version through the registry. Missing definitions produce a diagnostic and hard-cut behavior.
+Resolve the transition definition through the registry. Missing/incompatible definitions return a diagnostic with hard-cut behavior.
 
-- [ ] **Step 7: Run full tests and commit**
+- [ ] **Step 7: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/transition-runtime.test.ts
 pnpm test -- --run
+pnpm run typecheck
 git add lib/lyricforge/transition-runtime.ts lib/lyricforge/__tests__/transition-runtime.test.ts
 git commit -m "feat: add explicit transition runtime"
 ```
 
 ---
 
-### Task 6: Add reusable render surfaces and trusted Canvas 2D effect/transition executors
+### Task 6: Add reusable render surfaces and trusted Canvas 2D executors
 
 **Files:**
 - Create: `lib/lyricforge/render-surfaces.ts`
@@ -544,85 +793,125 @@ git commit -m "feat: add explicit transition runtime"
 - Create: `lib/lyricforge/__tests__/render-surfaces.test.ts`
 - Create: `lib/lyricforge/__tests__/render-operations.test.ts`
 
-**Interfaces:**
-- Produces `RenderSurfacePool.acquire(width,height,scale,key)` and `.dispose()`.
-- Produces `applyEffectPlan(target,source,effect,frameContext)`.
-- Produces `compositeTransition(target,outgoing,incoming,resolvedTransition,frameContext)`.
-- Executors accept only trusted runtime operation identifiers emitted by the registry.
-
-- [ ] **Step 1: Write surface reuse tests**
+- [ ] **Step 1: Write failing pool tests**
 
 ```ts
-it('reuses a surface for the same key and dimensions',()=>{
- const pool=new RenderSurfacePool();
- const a=pool.acquire(1920,1080,1,'scene');
- const b=pool.acquire(1920,1080,1,'scene');
- expect(b).toBe(a);
+it('reuses one keyed surface at stable dimensions',()=>{
+  const pool=new RenderSurfacePool();
+  expect(pool.acquire(640,360,1,'scene')).toBe(pool.acquire(640,360,1,'scene'));
+  expect(pool.stats().count).toBe(1);
 });
 
-it('resizes instead of retaining obsolete dimensions',()=>{
- const pool=new RenderSurfacePool();
- const a=pool.acquire(640,360,1,'fx');
- const b=pool.acquire(1280,720,1,'fx');
- expect(b.canvas.width).toBe(1280);
- expect(b.canvas.height).toBe(720);
- expect(pool.stats().count).toBe(1);
+it('resizes rather than retaining an obsolete keyed surface',()=>{
+  const pool=new RenderSurfacePool();
+  pool.acquire(640,360,1,'fx-a');
+  const next=pool.acquire(1280,720,1,'fx-a');
+  expect(next.canvas.width).toBe(1280);
+  expect(next.canvas.height).toBe(720);
+  expect(pool.stats().count).toBe(1);
 });
 ```
 
-- [ ] **Step 2: Implement pooled surfaces**
+- [ ] **Step 2: Implement the pool**
 
-Use `OffscreenCanvas` when available and HTML canvas otherwise. Reset transforms/composite/filter/global alpha before handing a context back. Pool keys identify purposes (`scene`, `clip:<id>`, `fx:a`, `fx:b`, `transition:a`, `transition:b`) and are reused across frames. `Renderer.dispose()` will dispose the pool later.
+Use `OffscreenCanvas` when available, otherwise `document.createElement('canvas')`. On acquire, reset transform, alpha, composite mode, filter, shadow state, and clear the surface. Pool keys are reused across frames. `dispose()` zeroes HTML-canvas dimensions where applicable and clears references.
 
-- [ ] **Step 3: Implement effect operation families**
+- [ ] **Step 3: Define exact trusted effect dispatch**
 
-Use trusted operation families so the entire approved list does not become unsafe dynamic code:
+`render-effects.ts` exports a source-controlled handler map keyed only by trusted runtime strings:
 
-- Canvas filter/alpha/composite operations: Blur, Brightness, Contrast, Saturation, Hue Shift, Drop Shadow/Glow.
-- Scene overlays: Vignette, Grain, VHS/Scanlines, Light Streak/Lens, Beat-reactive intensity.
-- Pixel/offscreen operations: Bloom approximation, Sharpen approximation, Duotone, Posterize, Pixelation, RGB Split, Noise Displacement, Glitch.
-- Geometric source transforms: Shake/Jitter, Zoom Pulse.
-- Text-aware outline remains a resolved renderer style modifier for text; non-text outline may use repeated offset drawing.
+```ts
+export const EFFECT_HANDLERS:Record<string,EffectRenderHandler>={
+ 'effect.glow':renderGlow,
+ 'effect.bloom':renderBloom,
+ 'effect.drop-shadow':renderDropShadow,
+ 'effect.outline':renderOutline,
+ 'effect.blur':renderBlur,
+ 'effect.sharpen':renderSharpen,
+ 'effect.grain':renderGrain,
+ 'effect.vignette':renderVignette,
+ 'effect.brightness':renderBrightness,
+ 'effect.contrast':renderContrast,
+ 'effect.saturation':renderSaturation,
+ 'effect.hue-shift':renderHueShift,
+ 'effect.duotone':renderDuotone,
+ 'effect.posterize':renderPosterize,
+ 'effect.pixelate':renderPixelate,
+ 'effect.rgb-split':renderRgbSplit,
+ 'effect.vhs':renderVhs,
+ 'effect.noise-displacement':renderNoiseDisplacement,
+ 'effect.shake':renderShake,
+ 'effect.zoom-pulse':renderZoomPulse,
+ 'effect.light-streak':renderLightStreak,
+ 'effect.glitch':renderGlitch,
+ 'effect.beat-reactive':renderBeatReactive,
+};
+```
 
-`preview-low` uses the definition's simplified/bypass rule; `export` never uses a lower-quality branch.
+Canvas-native filters/compositing are preferred. Pixel/offscreen handlers use pooled surfaces. `preview-low` may take only the trusted simplified branch declared by registry metadata. Export always uses full behavior.
 
-- [ ] **Step 4: Make procedural noise deterministic**
+- [ ] **Step 4: Make procedural effects deterministic**
 
-Do not use `Math.random()` per frame. Derive pseudo-random values from stable integer inputs such as asset/instance hash + frame number so preview and export at the same time produce the same grain/glitch pattern.
+No per-frame `Math.random()` is allowed. Seed by stable instance hash + integer frame index:
 
 ```ts
 export function hashNoise(seed:number){
- let x=seed|0;x^=x<<13;x^=x>>>17;x^=x<<5;
- return ((x>>>0)%1000000)/1000000;
+  let x=seed|0;x^=x<<13;x^=x>>>17;x^=x<<5;
+  return ((x>>>0)%1000000)/1000000;
 }
 ```
 
-- [ ] **Step 5: Implement transition operation families**
+Use this for Grain, VHS noise, Noise Displacement, Glitch, Film Burn, and Light Leak.
 
-- Alpha/composite: Crossfade, Dip Black/White, Flash.
-- Transform: Push, Slide, Zoom, Spin.
-- Clip/mask: Directional Wipe, Mask Reveal, Pixel Dissolve.
-- Filter/offscreen: Blur Dissolve, Glitch, RGB Split.
-- Deterministic procedural overlays: Film Burn and Light Leak.
+- [ ] **Step 5: Define exact trusted transition dispatch**
 
-Every executor receives normalized `progress`; it must not recalculate project adjacency/timing.
+```ts
+export const TRANSITION_HANDLERS:Record<string,TransitionRenderHandler>={
+ 'transition.crossfade':renderCrossfade,
+ 'transition.dip-black':renderDipBlack,
+ 'transition.dip-white':renderDipWhite,
+ 'transition.blur-dissolve':renderBlurDissolve,
+ 'transition.push':renderPush,
+ 'transition.slide':renderSlide,
+ 'transition.wipe':renderWipe,
+ 'transition.zoom':renderZoom,
+ 'transition.spin':renderSpin,
+ 'transition.flash':renderFlash,
+ 'transition.glitch':renderTransitionGlitch,
+ 'transition.rgb-split':renderTransitionRgbSplit,
+ 'transition.pixel-dissolve':renderTransitionPixelDissolve,
+ 'transition.film-burn':renderFilmBurn,
+ 'transition.light-leak':renderLightLeak,
+ 'transition.mask-reveal':renderMaskReveal,
+};
+```
 
-- [ ] **Step 6: Add operation contract tests**
+Handlers receive normalized progress and already-rendered outgoing/incoming surfaces. They do not recalculate project timing/adjacency.
 
-Tests should use fake recording contexts or small real jsdom canvas-compatible stubs to assert dispatch category, quality branch, deterministic seeds, and that every registry runtime string has an executor. Do not depend on large pixel snapshots for every preset.
+- [ ] **Step 6: Test registry/executor completeness**
 
-- [ ] **Step 7: Run tests and commit**
+```ts
+it('has an executor for every trusted effect and transition runtime',()=>{
+  for(const def of creativeRegistry.all('effect'))expect(EFFECT_HANDLERS[def.runtime]).toBeTypeOf('function');
+  for(const def of creativeRegistry.all('transition'))expect(TRANSITION_HANDLERS[def.runtime]).toBeTypeOf('function');
+});
+```
+
+Also assert deterministic noise returns the same values for the same seeds and changes for different frame seeds. Use recording/fake contexts for dispatch/order tests rather than brittle full-size pixel snapshots.
+
+- [ ] **Step 7: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/render-surfaces.test.ts lib/lyricforge/__tests__/render-operations.test.ts
 pnpm test -- --run
+pnpm run typecheck
 git add lib/lyricforge/render-surfaces.ts lib/lyricforge/render-effects.ts lib/lyricforge/render-transitions.ts lib/lyricforge/__tests__/render-surfaces.test.ts lib/lyricforge/__tests__/render-operations.test.ts
 git commit -m "feat: add trusted creative render operations"
 ```
 
 ---
 
-### Task 7: Integrate one creative frame runtime into the existing Renderer and both export paths
+### Task 7: Integrate one frame runtime into `Renderer` and both export paths
 
 **Files:**
 - Create: `lib/lyricforge/creative-runtime.ts`
@@ -632,166 +921,189 @@ git commit -m "feat: add trusted creative render operations"
 - Create: `lib/lyricforge/__tests__/creative-runtime.test.ts`
 - Create: `lib/lyricforge/__tests__/renderer-creative-order.test.ts`
 
-**Interfaces:**
-- Produces `resolveCreativeFrame(project,timeMs,quality,mediaInfo?)`.
-- `RenderOptions` gains `quality?:CreativeQuality`; `export:true` always forces `export` quality.
-- `Renderer` exposes deduplicated `diagnostics:CreativeDiagnostic[]` and `clearCreativeDiagnostics()`.
-- Renderer quarantine key is instance ID; project revision/edit produces a new project reference and clears quarantines for IDs whose serialized instance changed.
-
-- [ ] **Step 1: Write failing frame-order tests**
-
-`creative-runtime.test.ts` must assert a frame plan declares clip effects before transition operations and master effects last. `renderer-creative-order.test.ts` should use injected/spied operation executors or a recording adapter and assert this order:
+**Renderer contract:**
 
 ```ts
-expect(operations).toEqual([
- 'clip:source:text-a',
- 'clip:effect:clip-glow',
- 'transition:crossfade',
- 'scene:composite',
- 'master:effect:grain',
- 'editor:overlay'
-]);
+export interface RenderOptions{
+ guides?:boolean;
+ selected?:string[];
+ export?:boolean;
+ quality?:CreativeQuality;
+}
 ```
 
-Also assert `export:true` omits `editor:overlay` and uses `quality:'export'`.
+`export:true` forces `quality:'export'` even if another value is accidentally passed.
 
-- [ ] **Step 2: Run focused tests and confirm failure**
+- [ ] **Step 1: Write failing frame-plan/order tests**
+
+```ts
+it('orders clip effects before transition and master effects last',()=>{
+  const plan=resolveCreativeFrame(projectAtCut,1000,'preview-high');
+  expect(plan.operationOrder).toEqual([
+    'clip:source:text-a',
+    'clip:effect:clip-glow',
+    'transition:tr-1',
+    'scene:composite',
+    'master:effect:master-grain',
+  ]);
+});
+```
+
+A renderer recording adapter must prove editor overlay is last in preview and absent in export:
+
+```ts
+expect(previewOps.at(-1)).toBe('editor:overlay');
+expect(exportOps).not.toContain('editor:overlay');
+expect(exportPlan.quality).toBe('export');
+```
+
+- [ ] **Step 2: Run focused tests and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-runtime.test.ts lib/lyricforge/__tests__/renderer-creative-order.test.ts
 ```
 
-- [ ] **Step 3: Implement the pure frame facade**
+- [ ] **Step 3: Implement `resolveCreativeFrame()` as a pure facade**
 
-`resolveCreativeFrame()` indexes clips by ID/track once, resolves text animation state for active/transition-side clips, resolves each clip effect stack, resolves transitions whose virtual window contains `timeMs`, resolves master effects, and returns diagnostics. It does not draw.
+Index clips by ID/track once per frame. Resolve active normal clips, transition windows, transition sample times, per-role text animation state, clip effect plans, master effect plan, audio-reactive input, and diagnostics. The facade does not draw.
 
-- [ ] **Step 4: Refactor `Renderer.draw()` around scene/clip surfaces without replacing media logic**
+- [ ] **Step 4: Refactor `Renderer.draw()` without replacing existing media behavior**
 
-Preserve existing `VideoPool`, `mediaTime()`, `prepareMedia()`, background, waveform/visualizer, hit bounds, neighbor lyrics, and legacy `effect()` clip path.
+Preserve `VideoPool`, `mediaTime()`, background, neighbor lyric behavior, waveform/spectrum rendering, hit bounds, and legacy `effect()` clips. Use direct drawing for clips that need no creative surface; use pooled clip surfaces when an effect or transition needs pixel access.
 
-Rendering rules:
+During an active transition, render both specified sides at the sample times from Task 5 even when one side is outside its nominal active timeline interval. Composite the pair once for that track. Do not also draw either transition-side clip through the normal direct path in that frame.
 
-1. Draw background/base scene.
-2. Render each normal clip to a clip surface when it has effects or participates in a transition; otherwise keep the fast direct path when safe.
-3. Apply resolved Intro/Loop/Outro state in text rendering instead of branching directly on new preset display names.
-4. Apply ordered clip effects.
-5. When a transition window is active, render the specified outgoing/incoming pair and composite via the transition executor even though only one side would be normally active before/after the exact cut.
-6. Composite all visual tracks with existing opacity/blend semantics.
-7. Apply master effects to the scene surface.
-8. Copy final scene to output canvas.
-9. Draw guides and selection outlines only in non-export editor mode.
+Canonical text role state is applied before clip effects. Legacy per-word `emphasis` remains where it is today.
 
-- [ ] **Step 5: Preserve legacy behavior explicitly**
+- [ ] **Step 5: Extend `prepareMedia()` for transition-side videos**
 
-When a text clip has no canonical `animations` slot, use `legacyAnimationInstances()` so old style fields keep their appearance. Continue calling the existing legacy `effect(ctx,p,c,time)` for `kind:'effect'` clips. Do not auto-convert those clips.
+Export currently awaits `prepareMedia()` before drawing. It must seek both normally active videos and any video used by an active transition side. For a transition-side video, seek with `mediaTime(clip, transitionSampleMs, duration)` rather than raw project time. This prevents export from attempting to draw unprepared incoming/outgoing video frames during virtual overlap.
 
-- [ ] **Step 6: Add quarantine boundaries**
+Preview remains allowed to seek asynchronously using the same sample time when not exporting.
 
-Wrap each trusted effect/transition executor call separately. On first throw, record one diagnostic and quarantine the instance ID for the renderer session. A quarantined effect is bypassed; a quarantined transition renders a hard cut. Do not catch unrelated renderer/media failures at this boundary.
+- [ ] **Step 6: Add renderer quarantine with per-instance signatures**
 
-- [ ] **Step 7: Force both exporters through export quality**
-
-Change both export paths from:
+Track serialized signatures only for executable instances:
 
 ```ts
-renderer.draw(canvas,p,time,{export:true});
+function signature(value:EffectInstance|TransitionInstance){
+  return JSON.stringify(value);
+}
 ```
 
-to:
+Before each frame, compare current instance signatures with the renderer's prior map. If an instance's signature changed or the ID disappeared, remove only that ID from quarantine/diagnostic dedupe state. New renderer => empty quarantine. Executor failures add the single instance ID to quarantine and one deduplicated diagnostic. Quarantined effect => bypass; quarantined transition => hard cut.
+
+- [ ] **Step 7: Preserve legacy rendering explicitly**
+
+If a canonical animation role is absent, Task 3's legacy adapter supplies that role. Continue rendering `kind:'effect'` clips through the current legacy `Renderer.effect()` method. Do not auto-convert old effect clips.
+
+- [ ] **Step 8: Force both exporters through the same export-quality renderer**
+
+Both export loops become:
 
 ```ts
+await renderer.prepareMedia(p,time);
 renderer.draw(canvas,p,time,{export:true,quality:'export'});
 ```
 
-Do not create an exporter-specific creative runtime.
+There is no exporter-specific creative evaluator.
 
-- [ ] **Step 8: Add pre-export unresolved-creative validation**
+- [ ] **Step 9: Validate unresolved creative references before expensive encoding**
 
-Expose `validateCreativeProject(project)` from `creative-runtime.ts`. `renderVideo()` and software fallback call it before expensive encoding and throw a readable error listing unresolved creative instance IDs unless the caller explicitly passes a future fallback option. In this phase there is no silent fallback flag in the export UI, so unresolved required creative assets block export with a clear message; runtime executor failures discovered only during rendering still use quarantine + diagnostic and should surface to the export caller.
+`validateCreativeProject(project)` returns unresolved instance diagnostics by registry lookup and target compatibility. `renderVideo()` checks this before initializing encoding. If unresolved required creative instances exist, throw one readable error containing their IDs. This phase does not add a “continue with fallback” export UI; therefore the safe default is blocking export rather than silently producing different output.
 
-- [ ] **Step 9: Run unit, legacy, and build checks**
+- [ ] **Step 10: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-runtime.test.ts lib/lyricforge/__tests__/renderer-creative-order.test.ts
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 pnpm run build
-```
-
-- [ ] **Step 10: Commit**
-
-```bash
 git add lib/lyricforge/creative-runtime.ts lib/lyricforge/renderer.ts lib/lyricforge/exporter.ts lib/lyricforge/software-exporter.ts lib/lyricforge/__tests__/creative-runtime.test.ts lib/lyricforge/__tests__/renderer-creative-order.test.ts
 git commit -m "feat: integrate creative runtime with preview and export"
 ```
 
 ---
 
-### Task 8: Add undoable store operations for animations, effects, master effects, and transition selection
+### Task 8: Add undoable store operations for animations, effects, master effects, and transitions
 
 **Files:**
 - Modify: `lib/lyricforge/store.ts`
 - Create: `lib/lyricforge/__tests__/creative-store.test.ts`
 
-**Interfaces:**
-- Snapshot gains `selectedTransitionId:string|null`.
-- Produces `selectTransition(id:string|null)`.
-- Produces `setAnimation(clipId,role,instance|null)`.
-- Produces `addClipEffect(clipId,assetId,version)` and effect patch/move/duplicate/remove helpers.
-- Produces equivalent master-effect helpers.
-- Produces `addTransition(outgoingId,incomingId,assetId='builtin.transition.crossfade')`, `patchTransition(id,patch)`, `removeTransition(id)`.
-- Removing/moving clips never silently retargets transitions; invalid objects may remain until explicitly removed, and runtime/UI marks them invalid.
+Store snapshot gains `selectedTransitionId:string|null`.
 
 - [ ] **Step 1: Write failing store tests**
 
 ```ts
-it('duplicates an effect with a new instance id and copied params/keyframes',()=>{
- const store=new EditorStore();
- const clip=store.add('text',0,'hello');
- const first=store.addClipEffect(clip.id,'builtin.effect.glow','1.0.0')!;
- const second=store.duplicateClipEffect(clip.id,first.id)!;
- expect(second.id).not.toBe(first.id);
- expect(second.params).toEqual(first.params);
+it('duplicates an effect with a new instance id and copied settings',()=>{
+  const s=new EditorStore();
+  const clip=s.add('text',0,'hello');
+  const first=s.addClipEffect(clip.id,'builtin.effect.glow','1.0.0')!;
+  s.patchClipEffect(clip.id,first.id,{params:{intensity:.35}});
+  const second=s.duplicateClipEffect(clip.id,first.id)!;
+  expect(second.id).not.toBe(first.id);
+  expect(second.params).toEqual({intensity:.35});
 });
 
-it('selecting a transition clears clip selection',()=>{
- const store=new EditorStore();
- store.select(['clip-a']);
- store.selectTransition('transition-a');
- expect(store.selected).toEqual([]);
- expect(store.getSnapshot().selectedTransitionId).toBe('transition-a');
+it('transition selection and clip selection are mutually exclusive',()=>{
+  const s=new EditorStore();
+  s.select(['clip-a']);
+  s.selectTransition('tr-a');
+  expect(s.selected).toEqual([]);
+  expect(s.getSnapshot().selectedTransitionId).toBe('tr-a');
+  s.select(['clip-b']);
+  expect(s.getSnapshot().selectedTransitionId).toBeNull();
 });
 ```
 
-Also test add/reorder/toggle/remove are undoable, master effects are project scoped, transition creation refuses invalid/non-adjacent pairs using `isValidTransitionPair()`, and `setProject()/undo()/redo()` clear an invalid transition selection.
+Also prove effect add/reorder/toggle/remove is undoable; master effects modify only `project.masterEffects`; `addTransition()` rejects invalid pairs using Task 5; and `setProject()/undo()/redo()` clear transition selection when its ID no longer exists.
 
-- [ ] **Step 2: Run focused tests and confirm failures**
+- [ ] **Step 2: Run focused test and confirm red**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-store.test.ts
 ```
 
-- [ ] **Step 3: Implement store helpers using existing history mechanics**
+- [ ] **Step 3: Implement helpers through existing immutable history**
 
-All helpers must call `update()`/`patch()` rather than mutate arrays. Use `uid()` for effect/transition instance IDs. New instances take registry defaults through a helper such as `createEffectInstance(definition)` rather than duplicating defaults in UI code.
+Required methods:
 
-- [ ] **Step 4: Make selection semantics explicit**
+```ts
+selectTransition(id:string|null):void;
+setAnimation(clipId:string,role:AnimationRole,instance:AnimationInstance|null):void;
+addClipEffect(clipId:string,assetId:string,version:string):EffectInstance|undefined;
+patchClipEffect(clipId:string,instanceId:string,patch:Partial<EffectInstance>):void;
+moveClipEffect(clipId:string,instanceId:string,delta:-1|1):void;
+duplicateClipEffect(clipId:string,instanceId:string):EffectInstance|undefined;
+removeClipEffect(clipId:string,instanceId:string):void;
+addMasterEffect(assetId:string,version:string):EffectInstance|undefined;
+patchMasterEffect(instanceId:string,patch:Partial<EffectInstance>):void;
+moveMasterEffect(instanceId:string,delta:-1|1):void;
+duplicateMasterEffect(instanceId:string):EffectInstance|undefined;
+removeMasterEffect(instanceId:string):void;
+addTransition(outgoingId:string,incomingId:string,assetId?:string):TransitionInstance|undefined;
+patchTransition(id:string,patch:Partial<TransitionInstance>):void;
+removeTransition(id:string):void;
+```
 
-`select(ids)` clears `selectedTransitionId`; `selectTransition(id)` clears clip `selected`. `emit()` includes both. `undo()`, `redo()`, and `setProject()` clear a transition selection if the ID no longer exists.
+Creation uses registry defaults and `uid()`. No UI component invents preset defaults.
 
-- [ ] **Step 5: Run full tests and commit**
+- [ ] **Step 4: Verify and commit**
 
 ```bash
 pnpm test -- --run lib/lyricforge/__tests__/creative-store.test.ts
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 git add lib/lyricforge/store.ts lib/lyricforge/__tests__/creative-store.test.ts
 git commit -m "feat: add creative editor store operations"
 ```
 
 ---
 
-### Task 9: Add Inspector/mobile controls for animation slots and clip/master effect stacks
+### Task 9: Add Inspector/mobile controls for canonical animation slots and clip/master effect stacks
 
 **Files:**
 - Create: `components/editor/CreativeInspector.tsx`
@@ -799,60 +1111,72 @@ git commit -m "feat: add creative editor store operations"
 - Modify: `components/editor/Inspector.tsx`
 - Modify: `app/globals.css`
 
-**Interfaces:**
-- `CreativeInspector` receives no duplicate project state; it reads `useEditor()` and edits through `store`.
-- It switches context among selected transition, selected clip creative controls, and master effects.
-- Parameter editors are generated from registry schemas, not hard-coded per preset.
+- [ ] **Step 1: Write failing accessible component tests**
 
-- [ ] **Step 1: Write component tests for isolated creative controls**
+With a selected text clip:
 
-Mock/store a selected text clip and assert the UI exposes three labeled slots: `Intro`, `Loop`, `Outro`. Add an effect and assert its enabled toggle, duplicate, move up/down, remove, and parameter input render. With no clip selected, switch to Master and assert edits target `project.masterEffects`.
-
-Use direct accessible labels so tests remain robust:
-
-```tsx
+```ts
 expect(screen.getByLabelText('Intro animation')).toBeTruthy();
+expect(screen.getByLabelText('Loop animation')).toBeTruthy();
+expect(screen.getByLabelText('Outro animation')).toBeTruthy();
 expect(screen.getByRole('button',{name:'Add clip effect'})).toBeTruthy();
-expect(screen.getByRole('button',{name:'Duplicate Glow effect'})).toBeTruthy();
 ```
 
-- [ ] **Step 2: Run focused component test and confirm failure**
+After adding Glow:
+
+```ts
+expect(screen.getByRole('button',{name:'Duplicate Glow effect'})).toBeTruthy();
+expect(screen.getByRole('button',{name:'Move Glow effect up'})).toBeTruthy();
+expect(screen.getByRole('button',{name:'Remove Glow effect'})).toBeTruthy();
+```
+
+With no clip selected, assert `Master effects` is shown and changes only `project.masterEffects`.
+
+- [ ] **Step 2: Run focused test and confirm red**
 
 ```bash
 pnpm test -- --run components/editor/__tests__/CreativeInspector.test.tsx
 ```
 
-- [ ] **Step 3: Implement schema-driven parameter fields**
+- [ ] **Step 3: Implement schema-driven parameter controls**
 
-- number => `Range` plus numeric display using definition min/max/step.
-- boolean => `Toggle`.
-- select => `Choice` with definition options.
-- color => `ColorField`.
+Number -> `Range`; boolean -> `Toggle`; select -> `Choice`; color -> `ColorField`. All labels include preset + parameter name for accessibility. Add a keyframe button only when the trusted parameter definition says `keyframeable:true`.
 
-For a keyframeable numeric/color parameter, include `Add keyframe at playhead`. Clip effect time uses `audioEngine.time()-clip.start`; master effect time uses absolute `audioEngine.time()`; animation parameter keyframes use the selected role's computed role-window-relative time. Clamp to the valid scope before storing integer `timeMs`.
+Keyframe time scopes are exact:
 
-- [ ] **Step 4: Implement Intro/Loop/Outro UI**
+- Clip effect: `round(clamp(audioEngine.time()-clip.start,0,clip.end-clip.start))`.
+- Master effect: absolute rounded project time.
+- Animation parameter: relative to the role window computed by `animation-runtime.ts`.
 
-Text-capable clips show one preset selector per role plus enable toggle and parameters for the chosen definition. Choosing `None` writes `null`/removes that role. Legacy style values continue to display through the compatibility mapping until the user selects a canonical preset; that edit writes only the chosen canonical slot and does not erase unrelated legacy emphasis fields.
+- [ ] **Step 4: Implement Intro/Loop/Outro editing with per-role legacy fallback**
 
-- [ ] **Step 5: Implement clip/master effect stack UI**
+A selected `lyrics` or `text` clip gets one selector per role. Choosing a canonical preset writes only that role's `clip.animations[role]`. Choosing `None` removes the canonical role, which intentionally exposes the legacy fallback again if that legacy style field is non-`None`. Add a separate `Disable role` toggle when the user wants an explicit canonical disabled state rather than legacy fallback.
 
-Use a `Clip / Master` scope selector when a visual clip is selected; Master is the only available scope with no selected clip. Stack rows show name, enable toggle, drag-independent move up/down buttons for mobile accessibility, duplicate, delete, and expandable parameter controls.
+Do not erase `Style.emphasis`.
 
-- [ ] **Step 6: Integrate into Inspector without making the existing file larger than necessary**
+- [ ] **Step 5: Preserve All Lyrics legacy controls**
 
-Add an `Effects` tab to the existing inspector tab list and mount `CreativeInspector`. In the Motion tab, replace the old entrance/idle/exit controls with the new Intro/Loop/Outro section while retaining legacy emphasis controls until emphasis has a replacement. Keep existing transform/style/keyframe UI intact.
+When Inspector scope is `All lyrics`, keep the existing legacy `entrance`, `idle`, `exit`, and `emphasis` controls because `project.lyricStyle` does not own per-clip canonical animation slots. Canonical Intro/Loop/Outro controls appear only for an individually selected lyrics/text clip (`This line` or text layer). This avoids silently removing global animation editing.
 
-- [ ] **Step 7: Add portrait styles**
+- [ ] **Step 6: Implement clip/master effect stacks**
 
-Creative stack action buttons must be at least the existing mobile touch target size, effect cards must not force horizontal overflow, and parameter sections must scroll inside the established bottom-sheet inspector.
+Selected visual clips show a `Clip / Master` scope control. With no compatible clip, show Master only. Stack rows expose enable, move up/down, duplicate, delete, expandable parameters, and supported keyframes. Use buttons rather than drag-only ordering so phone users have a reliable touch path.
 
-- [ ] **Step 8: Run component/full/build checks and commit**
+- [ ] **Step 7: Integrate without bloating `Inspector.tsx`**
+
+Add an `Effects` tab mounting `CreativeInspector`. In Motion, mount its canonical animation section for individual text clips and retain the existing legacy animation section only for `All lyrics` plus the existing emphasis control where applicable. Existing layout/style/ordinary clip keyframes remain unchanged.
+
+- [ ] **Step 8: Add portrait-safe styles**
+
+Effect cards and parameter rows must stay inside the existing bottom-sheet width, use existing mobile control sizing, and keep all primary action targets at least 36 px high in phone portrait.
+
+- [ ] **Step 9: Verify and commit**
 
 ```bash
 pnpm test -- --run components/editor/__tests__/CreativeInspector.test.tsx components/editor/__tests__/Inspector.mobile.test.tsx
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 pnpm run build
 git add components/editor/CreativeInspector.tsx components/editor/__tests__/CreativeInspector.test.tsx components/editor/Inspector.tsx app/globals.css
 git commit -m "feat: add creative animation and effect controls"
@@ -870,67 +1194,66 @@ git commit -m "feat: add creative animation and effect controls"
 - Modify: `app/globals.css`
 - Modify: `lib/lyricforge/__tests__/timeline-mobile.test.ts`
 
-**Interfaces:**
-- `TimelineTransitions({track,clips,scale,viewLeft,viewWidth})` draws transition/add controls in the lane coordinate system where clip left values already exclude the fixed `LABEL` column.
-- Existing transition objects are selected with `store.selectTransition(id)`.
-- A valid adjacent touching cut without a transition shows a small add-transition affordance on hover/focus and persistently on touch/coarse-pointer layouts.
-- Transition duration drag modifies requested `durationMs`; runtime computes effective duration.
+- [ ] **Step 1: Write failing transition UI tests**
 
-- [ ] **Step 1: Write transition timeline tests**
+For one valid touching cut:
 
-Component tests must assert:
-
-```tsx
+```ts
 expect(screen.getByRole('button',{name:'Add transition between A and B'})).toBeTruthy();
 ```
 
-After creating one:
+After creating Crossfade:
 
-```tsx
+```ts
 expect(screen.getByRole('button',{name:/Crossfade transition between A and B/})).toBeTruthy();
 ```
 
-Also assert no add button appears for a 2 ms gap, an overlap, different tracks, audio clips, or a pair already containing a transition.
+Assert no Add button for a 2 ms gap, overlap, cross-track pair, audio pair, non-adjacent pair, or a cut already owning a transition.
 
-- [ ] **Step 2: Add mobile invariant expectations**
+- [ ] **Step 2: Extend mobile timeline invariants**
 
-Extend `timeline-mobile.test.ts` to require `[data-transition-handle]` and a portrait minimum hit area. Preserve existing `LABEL=174`, 50 px row math, pinch zoom, and clip trim selectors.
+Require source/CSS hooks:
 
-- [ ] **Step 3: Run focused tests and confirm failure**
+```ts
+expect(timelineSource).toContain('data-transition-handle');
+expect(css).toMatch(/data-transition-handle[^}]*min-height:\s*36px/s);
+```
+
+Keep existing assertions for `data-timeline-scroller`, clip start/end handles, portrait clip height, and toolbar scrolling.
+
+- [ ] **Step 3: Run focused tests and confirm red**
 
 ```bash
 pnpm test -- --run components/editor/__tests__/TimelineTransitions.test.tsx lib/lyricforge/__tests__/timeline-mobile.test.ts
 ```
 
-- [ ] **Step 4: Implement transition/add markers**
+- [ ] **Step 4: Render transition/add controls in lane coordinates**
 
-For each track, derive compatible adjacent clip pairs using the same exported helper as the transition runtime. Marker center is `cutMs / 1000 * scale`. Existing transitions render above clips with width based on requested/effective duration visualization; invalid transitions tied to the track render with a warning state rather than relinking.
+`TimelineTransitions` derives compatible adjacent pairs from the same exported Task 5 helper; it does not duplicate adjacency rules. The marker center is `cutMs/1000*scale`. Existing transition visual width uses `effectiveDurationMs` so the timeline shows what can actually render; Inspector separately shows the user's requested value when clamped.
 
-- [ ] **Step 5: Implement duration dragging**
+Valid cuts without a transition show an add affordance on hover/focus, and persistently under coarse-pointer/phone CSS.
 
-A duration handle converts horizontal delta to milliseconds and updates requested duration symmetrically:
+- [ ] **Step 5: Implement symmetric requested-duration drag**
 
 ```ts
-const next=Math.max(50,Math.round(baseDuration+2*deltaPx/scale*1000));
+const deltaMs=2*deltaPx/scale*1000;
+const next=Math.max(50,Math.round(baseDuration+deltaMs));
 store.patchTransition(id,{durationMs:next});
 ```
 
-Use `store.begin()/end()` around the gesture. The Inspector displays `effectiveDurationMs` from `transitionWindow()` when clamped, while the editable field remains the stored requested duration.
+Wrap pointer gesture in `store.begin()/store.end()`. Runtime still performs the authoritative clamp.
 
-- [ ] **Step 6: Add transition Inspector controls**
+- [ ] **Step 6: Add selected-transition Inspector mode**
 
-When `selectedTransitionId` is set, `CreativeInspector` shows transition preset selector, requested duration, easing, schema-driven parameters, effective duration status, and Remove. Invalid pair state shows an explicit warning with clip names/IDs and Remove; do not offer automatic relinking.
+When `selectedTransitionId` exists, show preset, requested duration, easing, schema-driven parameters, effective duration, source/target clip names, validity warning, and Remove. Invalid transitions are never auto-relinked.
 
-- [ ] **Step 7: Add touch/portrait CSS**
-
-Ensure transition objects have at least 36 px visible/implicit touch height in phone portrait and do not intercept clip trim handles outside the transition control region.
-
-- [ ] **Step 8: Run full regressions/build and commit**
+- [ ] **Step 7: Verify and commit**
 
 ```bash
 pnpm test -- --run components/editor/__tests__/TimelineTransitions.test.tsx lib/lyricforge/__tests__/timeline-mobile.test.ts
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 pnpm run build
 git add components/editor/TimelineTransitions.tsx components/editor/__tests__/TimelineTransitions.test.tsx components/editor/Timeline.tsx components/editor/CreativeInspector.tsx app/globals.css lib/lyricforge/__tests__/timeline-mobile.test.ts
 git commit -m "feat: edit transitions directly on the timeline"
@@ -938,7 +1261,7 @@ git commit -m "feat: edit transitions directly on the timeline"
 
 ---
 
-### Task 11: Add preview quality selection and visible creative diagnostics without adding catalog/settings scope
+### Task 11: Add Preview Low/High selection and visible creative diagnostics
 
 **Files:**
 - Modify: `components/editor/Preview.tsx`
@@ -947,33 +1270,56 @@ git commit -m "feat: edit transitions directly on the timeline"
 - Create: `components/editor/__tests__/CreativeDiagnostics.test.tsx`
 - Modify: `app/globals.css`
 
-**Interfaces:**
-- Preview quality UI supports exactly `Low` and `High`; export always uses runtime `export` quality and is not selectable from Preview.
-- `Renderer.diagnostics` are surfaced as deduplicated warnings in the editor.
-- This task does not add the later full Settings screen or online dependency recovery/install UI.
+This task deliberately does not build the later full Settings or online recovery/catalog UI.
 
-- [ ] **Step 1: Write diagnostic UI tests**
+- [ ] **Step 1: Write failing diagnostics tests**
 
-Render `CreativeDiagnostics` with one missing asset diagnostic and one runtime failure. Assert each instance appears once, the text names the asset/instance, and dismissing a warning only dismisses presentation state; it does not mutate project references.
+```ts
+const diagnostics=[
+ {kind:'missing' as const,instanceId:'fx-missing',assetId:'catalog.effect.future',message:'Missing effect'},
+ {kind:'runtime' as const,instanceId:'fx-bad',assetId:'builtin.effect.glitch',message:'Effect failed'},
+];
+render(<CreativeDiagnostics diagnostics={diagnostics}/>);
+expect(screen.getByText(/fx-missing/)).toBeTruthy();
+expect(screen.getByText(/fx-bad/)).toBeTruthy();
+```
 
-- [ ] **Step 2: Add preview quality state**
+Pass the same diagnostic twice and assert it renders once by `kind + instanceId + message`. Dismissing presentation state must not mutate project data.
 
-Use local editor preference persisted through existing `saveSetting/loadSetting` under key `creativePreviewQuality`, values `preview-low | preview-high`, default `preview-high`. Pass it into `Renderer.draw()` from `Preview`.
+- [ ] **Step 2: Add persisted preview-quality state in `Editor`**
 
-- [ ] **Step 3: Surface diagnostics**
+Load/save existing settings key `creativePreviewQuality`. Allowed values are `preview-low | preview-high`; invalid/missing value defaults to `preview-high`. Pass quality to `Preview` as a prop.
 
-After draws, read the current renderer diagnostics into a small deduplicated state only when the set changes. Show non-blocking warnings near the viewer/inspector. Missing/incompatible assets explain that the item is bypassed and preserved; runtime failures explain that the item was disabled for this renderer session.
+UI labels are exact:
 
-- [ ] **Step 4: Add performance-safe UI wording**
+- `Low — faster editing`
+- `High — closer to export`
 
-Low quality text: `Low — faster editing`. High: `High — closer to export`. Do not claim Low changes the exported result.
+Export is not selectable here and is always full quality.
 
-- [ ] **Step 5: Run tests/build and commit**
+- [ ] **Step 3: Pass quality into the existing render loop**
+
+```ts
+render.draw(el,state.project,t,{
+ selected:state.selected,
+ guides:state.guides,
+ quality,
+});
+```
+
+Ensure changing quality invalidates the preview loop's draw cache so the next animation frame redraws immediately.
+
+- [ ] **Step 4: Surface renderer diagnostics without per-frame React churn**
+
+`Preview` compares a stable serialized diagnostic key after draws and updates React state only when the deduplicated diagnostic set changes. Missing/incompatible text says the item is preserved but bypassed. Runtime-failure text says the item is disabled for this renderer session.
+
+- [ ] **Step 5: Verify and commit**
 
 ```bash
 pnpm test -- --run components/editor/__tests__/CreativeDiagnostics.test.tsx
 pnpm test -- --run
 pnpm run test:legacy
+pnpm run typecheck
 pnpm run build
 git add components/editor/Preview.tsx components/editor/Editor.tsx components/editor/CreativeDiagnostics.tsx components/editor/__tests__/CreativeDiagnostics.test.tsx app/globals.css
 git commit -m "feat: add creative preview quality and diagnostics"
@@ -981,48 +1327,58 @@ git commit -m "feat: add creative preview quality and diagnostics"
 
 ---
 
-### Task 12: Final compatibility, parity, performance, mobile, and GitHub Pages verification
+### Task 12: Final acceptance, parity, performance, mobile, and GitHub Pages verification
 
 **Files:**
 - Create: `lib/lyricforge/__tests__/creative-runtime-acceptance.test.ts`
-- Modify only if evidence requires a fix: runtime/editor files from Tasks 1-11.
-- Do not add temporary workflow files; use the existing `.github/workflows/deploy-pages.yml`.
+- Modify implementation files only when a failing test/verification demonstrates a defect.
+- Do not add temporary workflow files; use `.github/workflows/deploy-pages.yml`.
 
-**Interfaces:**
-- This task adds no new product architecture. It proves the approved acceptance criteria on the clean feature branch.
+- [ ] **Step 1: Add concrete acceptance assertions**
 
-- [ ] **Step 1: Add acceptance-level source/runtime tests**
-
-Cover in one focused suite:
+Build fixtures with `createProject()/makeTrack()/makeClip()` and assert, at minimum:
 
 ```ts
-it('preserves legacy project animations and legacy effect clips');
-it('resolves intro loop outro independently');
-it('executes clip effects in array order and master effects last');
-it('keeps duplicate effect instances independent');
-it('uses exact or explicitly compatible registry versions only');
-it('accepts only adjacent same-track one-millisecond transition cuts');
-it('centers and clamps virtual overlap without mutating requested duration');
-it('does not retarget transitions after clip edits');
-it('bypasses missing assets while preserving references');
-it('quarantines a failing effect or transition per renderer session');
-it('uses the same frame runtime for preview and export quality modes');
+it('preserves legacy creative behavior and explicit legacy effect clips',()=>{
+  const p=legacyCreativeFixture();
+  const migrated=validateProject(structuredClone(p));
+  expect(migrated.clips.find(c=>c.id==='legacy-effect')?.kind).toBe('effect');
+  const text=migrated.clips.find(c=>c.id==='legacy-text')!;
+  expect(resolveAnimationRoles(migrated,text,text.start+100,'preview-high').sources.intro).toBe('legacy');
+});
+
+it('keeps transition request duration while exposing the clamped render duration',()=>{
+  const {project,transition}=shortTransitionFixture();
+  const resolved=resolveTransition(project,transition,transitionCut(project,transition),'export')!;
+  expect(transition.durationMs).toBe(2000);
+  expect(resolved.window.effectiveDurationMs).toBeLessThan(2000);
+});
+
+it('does not retarget a transition after inserting a new adjacent clip',()=>{
+  const {project,transition}=validTransitionFixture();
+  expect(isValidTransitionPair(project,transition).valid).toBe(true);
+  project.clips.push(makeInterveningClip(project,transition));
+  expect(isValidTransitionPair(project,transition).valid).toBe(false);
+  expect(transition.outgoingItemId).toBe('a');
+  expect(transition.incomingItemId).toBe('b');
+});
 ```
 
-Each test must have concrete assertions against project/runtime output; these are test names, not empty placeholders.
+The suite also asserts clip-effect order, master-last order, duplicate effect independence, exact/explicit registry versioning, 1 ms cut tolerance, missing-asset reference preservation, quality modes, deterministic procedural effects, and renderer quarantine reset after editing the failing instance.
 
-- [ ] **Step 2: Run the full local verification set from a fresh dependency state**
+- [ ] **Step 2: Fresh dependency + type + test + build verification**
 
 ```bash
 corepack enable
 corepack prepare pnpm@11.25.0 --activate
 pnpm install --frozen-lockfile
+pnpm run typecheck
 pnpm test -- --run
 pnpm run test:legacy
 pnpm run build
 ```
 
-Expected: all commands exit 0.
+Every command must exit 0 before completion is claimed.
 
 - [ ] **Step 3: Normalize and verify the Pages artifact exactly like CI**
 
@@ -1039,59 +1395,61 @@ node scripts/verify-pages-build.mjs
 
 Expected output includes `GitHub Pages artifact validation passed.`
 
-- [ ] **Step 4: Perform manual mobile QA on a phone-sized Android Chrome viewport**
+- [ ] **Step 4: Mobile/browser QA**
 
-Verify this exact flow without desktop-only controls:
+When a real Chromium/Android browser or emulator is available in the execution environment, verify this exact flow at phone portrait and phone landscape sizes:
 
-1. Select a text clip from the preview.
-2. Assign Intro, Loop, and Outro presets and scrub through each window.
-3. Add two clip effects, reorder them, disable/enable one, duplicate one, and keyframe a supported parameter.
-4. Switch Preview High -> Low and verify editing remains functional; switch back to High.
-5. Add a master effect and confirm it changes the final scene rather than only the selected clip.
-6. Put two compatible visual clips on one track with a touching cut, add a Crossfade, drag requested duration, and verify no physical overlap is created.
-7. Move one clip 2 ms away; confirm transition shows invalid instead of moving to another cut. Restore the cut.
-8. Save, reload, and verify creative settings persist.
-9. Export a short video and compare frames before, during, and after the transition against High preview.
+1. Select a text clip from Preview.
+2. Assign Intro/Loop/Outro and scrub through each role window.
+3. Add two clip effects; reorder, disable/enable, duplicate, and keyframe a supported parameter.
+4. Switch Preview High -> Low -> High and confirm editor state/output updates without changing export settings.
+5. Add a master effect and confirm it affects the composed scene, not only the selected clip.
+6. Create a valid touching same-track cut, add Crossfade, drag duration, and confirm clips remain physically un-overlapped.
+7. Move one clip to create a 2 ms gap and confirm the transition becomes invalid instead of retargeting; restore the cut.
+8. Save/reopen and confirm creative settings persist.
+9. Export a short project and compare frames before/during/after the transition with High preview.
 
-Record any discrepancy as a failing test before fixing it.
+If no real browser/emulator is available, do not claim this manual/browser QA passed. Run all component/source-invariant tests, record the browser QA as the one unverified acceptance item, and state that limitation explicitly.
 
-- [ ] **Step 5: Perform a representative performance smoke check**
+- [ ] **Step 5: Performance/surface smoke check**
 
-Use a lyric-heavy project with at least 30 text/lyric clips, 3 clip effects on the active lyric, and 2 master effects. During Preview Low and High, verify surfaces are reused (`RenderSurfacePool.stats()` does not continuously increase while scrubbing) and no diagnostic is emitted merely from normal load. Do not add an arbitrary FPS acceptance number unsupported by the current test environment; treat unbounded surface growth or editor lock-up as failure.
+Use a fixture with at least 30 lyric/text clips, 3 effects on the active clip, and 2 master effects. Repeatedly resolve/draw a sequence of frame times in Low and High. Assert `RenderSurfacePool.stats().count` stabilizes after required keys are allocated instead of increasing every frame. Treat unbounded surface growth, repeated identical runtime diagnostics, or renderer lock-up as failure. Do not invent an FPS threshold that the current environment cannot measure reliably.
 
-- [ ] **Step 6: Run the complete verification again after any fixes**
+- [ ] **Step 6: Rerun the complete verification after any fix**
 
 ```bash
+pnpm run typecheck
 pnpm test -- --run
 pnpm run test:legacy
 pnpm run build
-# normalize artifact as in Step 3
 node scripts/verify-pages-build.mjs
 ```
 
-- [ ] **Step 7: Commit final acceptance coverage/necessary fixes**
+Run artifact normalization before the final verifier exactly as in Step 3.
+
+- [ ] **Step 7: Commit final acceptance coverage/fixes**
 
 ```bash
 git add -A
 git commit -m "test: verify creative runtime acceptance"
 ```
 
-If there are no file changes after verification, do not create an empty commit.
+If verification required no file changes, do not create an empty commit.
 
-- [ ] **Step 8: Verify the existing normal GitHub Pages workflow on `feat/source-foundation`**
+- [ ] **Step 8: Verify the existing normal GitHub Pages workflow on the clean feature branch**
 
-Push the clean branch normally. Inspect the resulting `Deploy LyricForge to GitHub Pages` run and require:
+Push `feat/source-foundation` normally and inspect the resulting `Deploy LyricForge to GitHub Pages` run. Require success for dependency install, unit tests, legacy regression tests, static build, artifact normalization, and deployable-site verification. Configure Pages/upload/deploy must be skipped because the ref is not `main`.
 
-- Install dependencies: success.
-- Unit tests: success.
-- Legacy regression tests: success.
-- Static build: success.
-- Normalize GitHub Pages artifact: success.
-- Verify deployable site: success.
-- Configure Pages / upload / deploy: skipped because the ref is not `main`.
+No temporary workflow is created for this phase.
 
-No temporary CI workflow is needed. Do not merge to `main` as part of this plan.
+- [ ] **Step 9: Completion protocol**
 
-- [ ] **Step 9: Invoke verification-before-completion before claiming the phase complete**
+Invoke `superpowers:verification-before-completion` with fresh evidence from Steps 2-8 before saying the phase is complete. Then invoke `superpowers:finishing-a-development-branch` and present the integration choices to the user. Do not merge `feat/source-foundation` to `main` automatically.
 
-Use fresh command/workflow evidence from Steps 6-8. Then invoke `superpowers:finishing-a-development-branch` and present its integration choices to the user rather than merging automatically.
+## Self-Review Result
+
+- Placeholder scan: no `TBD`, `TODO`, pseudo error-message placeholder, or undefined test-context variable remains.
+- Spec coverage: model/migration, registry, animation, clip/master effects, transition timing, virtual source sampling, render parity, quarantine, mobile editing, quality tiers, diagnostics, backward compatibility, and acceptance verification all have explicit tasks.
+- Type consistency: animation roles, instance IDs, parameter keyframes, quality modes, effect scopes, transition selection, and registry targets have one named contract each.
+- Scope: online catalog/install/settings work remains explicitly deferred; this plan is one cohesive creative-runtime phase.
+- Compatibility: global All Lyrics legacy animation editing and legacy effect clips are intentionally preserved rather than accidentally replaced by the new per-clip system.
