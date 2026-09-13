@@ -1,0 +1,29 @@
+name: Task11 preview quality integration one-shot
+
+on:
+  push:
+    branches: [feat/creative-runtime-inline]
+    paths:
+      - .github/workflows/task11-green-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/creative-runtime-inline
+          fetch-depth: 0
+      - name: Apply Task11 source patch
+        run: python scripts/task11-patch.py
+      - name: Commit Task11 source patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add components/editor/Preview.tsx components/editor/Editor.tsx app/globals.css
+          git diff --cached --check
+          git commit -m "feat: add preview quality and creative diagnostics"
+          git push origin HEAD:feat/creative-runtime-inline
