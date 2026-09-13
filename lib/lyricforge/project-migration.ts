@@ -1,9 +1,12 @@
 import { isCreativeAssetType, normalizeAssetRef, type ProjectDependency } from "./creative-assets";
 
-export const PROJECT_SCHEMA_VERSION = 2;
+export const PROJECT_SCHEMA_VERSION = 3;
 export type MigratedProjectDocument = Record<string, unknown> & {
   schemaVersion: number;
   dependencies: ProjectDependency[];
+  masterEffects: unknown[];
+  transitions: unknown[];
+  clips?: unknown[];
 };
 
 function normalizeDependency(value: unknown): ProjectDependency | null {
@@ -18,6 +21,12 @@ function normalizeDependency(value: unknown): ProjectDependency | null {
   } catch {
     return null;
   }
+}
+
+function normalizeClipStructure(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const clip = value as Record<string, unknown>;
+  return { ...clip, effects: Array.isArray(clip.effects) ? clip.effects : [] };
 }
 
 export function migrateProjectDocument(input: unknown): MigratedProjectDocument {
@@ -39,5 +48,14 @@ export function migrateProjectDocument(input: unknown): MigratedProjectDocument 
     dependencies.push(dependency);
   }
 
-  return { ...source, schemaVersion: PROJECT_SCHEMA_VERSION, dependencies };
+  const migrated = {
+    ...source,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+    dependencies,
+    masterEffects: Array.isArray(source.masterEffects) ? source.masterEffects : [],
+    transitions: Array.isArray(source.transitions) ? source.transitions : [],
+  } as MigratedProjectDocument;
+
+  if (Array.isArray(source.clips)) migrated.clips = source.clips.map(normalizeClipStructure);
+  return migrated;
 }

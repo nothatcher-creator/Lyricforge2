@@ -2,9 +2,12 @@ export const CREATIVE_ASSET_TYPES = ["font", "effect", "transition", "text-anima
 export type CreativeAssetType = (typeof CREATIVE_ASSET_TYPES)[number];
 export type AnimationRole = "intro" | "loop" | "outro";
 export type AssetParamValue = string | number | boolean;
+export type CreativeEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out";
 
 export interface AssetRef { id: string; type: CreativeAssetType; version: string; }
 export interface ProjectDependency extends AssetRef { sourceCatalogId?: string; }
+export interface CreativeKeyframe { id: string; timeMs: number; value: AssetParamValue; easing: CreativeEasing; }
+export type ParamKeyframes = Record<string, CreativeKeyframe[]>;
 
 export interface AnimationInstance {
   assetId: string;
@@ -12,22 +15,26 @@ export interface AnimationInstance {
   role: AnimationRole;
   enabled: boolean;
   params: Record<string, AssetParamValue>;
+  keyframes: ParamKeyframes;
 }
 
 export interface EffectInstance {
+  id: string;
   assetId: string;
   version: string;
   enabled: boolean;
   params: Record<string, AssetParamValue>;
+  keyframes: ParamKeyframes;
 }
 
 export interface TransitionInstance {
+  id: string;
   assetId: string;
   version: string;
   incomingItemId: string;
   outgoingItemId: string;
   durationMs: number;
-  easing: string;
+  easing: CreativeEasing;
   params: Record<string, AssetParamValue>;
 }
 
