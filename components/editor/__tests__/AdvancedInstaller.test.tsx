@@ -49,7 +49,7 @@ describe('advanced catalog installer',()=>{
   const user=userEvent.setup();
   await user.type(screen.getByLabelText('Direct manifest URL'),'https://example.test/page');
   await user.click(screen.getByRole('button',{name:'Review manifest'}));
-  expect(await screen.findByRole('alert')).toHaveTextContent(/direct json manifest|html/i);
+  expect((await screen.findByRole('alert')).textContent).toMatch(/direct json manifest|html/i);
   expect(installer.install).not.toHaveBeenCalled();
  });
 });
