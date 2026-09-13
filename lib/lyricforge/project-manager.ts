@@ -5,7 +5,7 @@ import {assets} from './assets';
 import {prepareDownload} from './downloads';
 import {defaultStyle,ANIMATIONS,type Project,type Asset} from './model';
 import {migrateProjectDocument,PROJECT_SCHEMA_VERSION} from './project-migration';
-import {collectProjectCatalogDependencies} from './catalog-dependencies';
+import {collectProjectCatalogDependencies,resolveProjectDependencies} from './catalog-dependencies';
 import {bundleCatalogDependencies,restoreBundledCatalogDependencies} from './catalog-bundle';
 import {getBrowserCatalogStorage} from './catalog-storage';
 import {CATALOG_APP_VERSION} from './catalog-types';
@@ -18,6 +18,13 @@ const persistedAssets=new Map<string,Blob>();
 let lastCatalogRestoreErrors:string[]=[];
 
 export function getLastCatalogRestoreErrors(){return [...lastCatalogRestoreErrors];}
+export interface ProjectBundleOptions{allowUnknownFontLicenses?:boolean;}
+export class UnknownFontLicenseBundleError extends Error{
+ readonly fonts:string[];
+ constructor(fonts:string[]){super(`Bundling these user-imported fonts may redistribute files with unknown license rights: ${fonts.join(', ')}`);this.name='UnknownFontLicenseBundleError';this.fonts=[...fonts];}
+}
+export function assertProjectFontBundleLicenses(p:Project,options:ProjectBundleOptions={}){const fonts=p.assets.filter(asset=>asset.type==='font').map(asset=>asset.name);if(fonts.length&&!options.allowUnknownFontLicenses)throw new UnknownFontLicenseBundleError(fonts);}
+export async function resolveCurrentProjectDependencies(p:Project){return resolveProjectDependencies(p,await getBrowserCatalogStorage().listVersions());}
 export async function saveProject(p:Project){const catalog=getBrowserCatalogStorage();const dependencies=collectProjectCatalogDependencies(p,await catalog.listVersions());const saved={...p,dependencies};const pending=saved.assets.map(a=>({id:a.id,blob:assets.blobs.get(a.id)})).filter(a=>a.blob&&persistedAssets.get(a.id)!==a.blob);await transaction(['projects','assets','settings'],'readwrite',tx=>{tx.objectStore('projects').put(saved);for(const a of pending)tx.objectStore('assets').put(a.blob,a.id);tx.objectStore('settings').put(saved.id,'lastProject');});await catalog.setProjectDependencies(saved.id,dependencies);for(const a of pending)persistedAssets.set(a.id,a.blob!);}
 export async function recentProjects(){return await transaction<Project[]>(['projects'],'readonly',t=>t.objectStore('projects').getAll())||[];}
 export async function openProject(id:string){const raw=await transaction<unknown>(['projects'],'readonly',t=>t.objectStore('projects').get(id));if(!raw)throw new Error('This project was not found on this device.');const p=validateProject(raw);await hydrate(p);return p;}
@@ -25,7 +32,7 @@ export async function lastProject(){return await transaction<string>(['settings'
 export async function saveSetting(key:string,value:unknown){await transaction(['settings'],'readwrite',t=>t.objectStore('settings').put(value,key));}
 export async function loadSetting<T>(key:string){return await transaction<T>(['settings'],'readonly',t=>t.objectStore('settings').get(key));}
 export async function hydrate(p:Project){for(const a of p.assets){if(assets.blobs.has(a.id))continue;const b=await transaction<Blob>(['assets'],'readonly',t=>t.objectStore('assets').get(a.id));if(!b)throw new Error(`Missing media: ${a.name}. Open a bundled project file or reimport this file.`);await assets.load(a,b);persistedAssets.set(a.id,b);}}
-export async function projectFile(p:Project){const directDependencies=collectProjectCatalogDependencies(p,[]);const bundle=directDependencies.length?await bundleCatalogDependencies(p,getBrowserCatalogStorage()):{project:{...p,dependencies:[]},entries:{} as Record<string,Uint8Array>};const entries:Record<string,Uint8Array>={'project.json':strToU8(JSON.stringify(bundle.project)),...bundle.entries};for(const a of bundle.project.assets){const b=assets.blobs.get(a.id);if(!b)throw new Error(`Cannot bundle missing media: ${a.name}`);entries['assets/'+a.id]=new Uint8Array(await b.arrayBuffer());}return new Promise<Blob>((resolve,reject)=>zip(entries,{level:0},(error,data)=>error?reject(error):resolve(new Blob([data as BlobPart],{type:'application/zip'}))));}
+export async function projectFile(p:Project,options:ProjectBundleOptions={}){assertProjectFontBundleLicenses(p,options);const directDependencies=collectProjectCatalogDependencies(p,[]);const bundle=directDependencies.length?await bundleCatalogDependencies(p,getBrowserCatalogStorage()):{project:{...p,dependencies:[]},entries:{} as Record<string,Uint8Array>};const entries:Record<string,Uint8Array>={'project.json':strToU8(JSON.stringify(bundle.project)),...bundle.entries};for(const a of bundle.project.assets){const b=assets.blobs.get(a.id);if(!b)throw new Error(`Cannot bundle missing media: ${a.name}`);entries['assets/'+a.id]=new Uint8Array(await b.arrayBuffer());}return new Promise<Blob>((resolve,reject)=>zip(entries,{level:0},(error,data)=>error?reject(error):resolve(new Blob([data as BlobPart],{type:'application/zip'}))));}
 
 const finite=z.number().finite();
 const time=finite.min(0).max(86400000);
