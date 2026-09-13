@@ -2,7 +2,7 @@ name: Deploy LyricForge to GitHub Pages
 
 on:
   push:
-    branches: [main, feat/source-foundation]
+    branches: [main, feat/source-foundation, feat/creative-catalog]
   workflow_dispatch:
 
 permissions:
