@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {resolveAnimationRoles} from '../animation-runtime';
+import {animationRoleTime,resolveAnimationRoles} from '../animation-runtime';
 import {createProject,makeClip,makeTrack} from '../model';
 import type {AnimationInstance,AnimationRole} from '../creative-assets';
 
@@ -63,5 +63,13 @@ describe('creative animation runtime',()=>{
     expect(resolveAnimationRoles(p,clip,0,'preview-high').state.alpha).toBe(0);
     const ending=resolveAnimationRoles(p,clip,3500,'preview-high').state.alpha;
     expect(ending).toBeGreaterThan(0);expect(ending).toBeLessThan(1);
+  });
+
+  it('exposes the same role-relative clock used by canonical keyframes',()=>{
+    const {clip}=textProject();
+    clip.start=1000;clip.end=5000;
+    expect(animationRoleTime(clip,'intro',1700,{durationMs:1000,delayMs:200})).toBe(500);
+    expect(animationRoleTime(clip,'loop',2400,{periodMs:1200})).toBe(1400);
+    expect(animationRoleTime(clip,'outro',4500,{durationMs:1000})).toBe(500);
   });
 });
