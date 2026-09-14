@@ -3,10 +3,8 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 
 const read=(path:string)=>readFileSync(resolve(process.cwd(),path),'utf8');
-const dialogs=read('components/editor/Dialogs.tsx');
-const editor=read('components/editor/Editor.tsx');
 const lyrics=read('components/editor/LyricPanel.tsx');
-const timeline=read('components/editor/Timeline.tsx');
+const transitions=read('components/editor/TimelineTransitions.tsx');
 const portraitCss=read('app/mobile-portrait.css');
 let alignmentDialog='';
 try{alignmentDialog=read('components/editor/AlignmentDialog.tsx');}catch{}
@@ -15,14 +13,13 @@ describe('Align Existing Lyrics workflow',()=>{
   it('keeps Auto Detect Lyrics and adds a separate alignment entry point',()=>{
     expect(lyrics).toContain('Auto Detect Lyrics');
     expect(lyrics).toContain('Align Existing Lyrics');
-    expect(lyrics).toContain('onAlign');
-    expect(editor).toContain('onAlign=');
+    expect(lyrics).toContain('AlignmentDialog');
   });
 
-  it('lets pasted lyrics be added normally or added and aligned without changing their text flow',()=>{
-    expect(dialogs).toContain('Add Lyrics');
-    expect(dialogs).toContain('Add & Auto Align');
-    expect(dialogs).toContain('onAlignPasted');
+  it('offers alignment immediately after the existing paste flow adds new lyric clips',()=>{
+    expect(lyrics).toContain('recentlyPasted');
+    expect(lyrics).toContain('Align now');
+    expect(lyrics).toContain('new lines added');
   });
 
   it('uses the existing recognition providers and protects manual timing by default',()=>{
@@ -45,8 +42,8 @@ describe('Align Existing Lyrics workflow',()=>{
   it('keeps low-confidence alignment visible after the dialog closes',()=>{
     expect(lyrics).toContain('alignmentQuality');
     expect(lyrics).toContain('alignment-confidence');
-    expect(timeline).toContain('alignmentQuality');
-    expect(timeline).toContain('alignment-flag');
+    expect(transitions).toContain('alignmentQuality');
+    expect(transitions).toContain('alignment-flag');
   });
 
   it('keeps the alignment dialog usable on phone portrait',()=>{
