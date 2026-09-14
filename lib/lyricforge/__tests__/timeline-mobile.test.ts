@@ -3,6 +3,7 @@ import {describe,expect,it} from 'vitest';
 const timeline=readFileSync('components/editor/Timeline.tsx','utf8');
 const transitions=readFileSync('components/editor/TimelineTransitions.tsx','utf8');
 const css=readFileSync('app/globals.css','utf8');
+
 describe('mobile timeline ergonomics',()=>{
   it('exposes stable hooks for the scroll surface, trim handles, and transition handle',()=>{
     expect(timeline).toContain('data-timeline-scroller');
