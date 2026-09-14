@@ -16,3 +16,17 @@ describe('inline edit tap timing',()=>{
     expect(shouldStartInlineEdit('text-1',1000,'text-1',1500)).toBe(false);
   });
 });
+
+describe('preview long press',()=>{
+  it('opens properties only for a stationary coarse-pointer press',async()=>{
+    const mod=await import('../preview-interaction');
+    const fn=(mod as any).shouldOpenPreviewProperties;
+    expect(typeof fn).toBe('function');
+    if(typeof fn!=='function')return;
+    expect(fn('touch',540,3)).toBe(true);
+    expect(fn('pen',600,5)).toBe(true);
+    expect(fn('touch',300,2)).toBe(false);
+    expect(fn('touch',600,18)).toBe(false);
+    expect(fn('mouse',700,0)).toBe(false);
+  });
+});
