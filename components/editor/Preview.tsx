@@ -6,7 +6,7 @@ import {audioEngine,useTransport} from '@/lib/lyricforge/audio';
 import {Renderer} from '@/lib/lyricforge/renderer';
 import type {CreativeDiagnostic} from '@/lib/lyricforge/effect-runtime';
 import {clamp,formatTime,lyricClips,effectiveStyle,setText} from '@/lib/lyricforge/model';
-import {pickTextBound,shouldOpenPreviewProperties,shouldStartInlineEdit,type PreviewBound} from '@/lib/lyricforge/preview-interaction';
+import {pickTextBound,shouldMovePreviewItem,shouldOpenPreviewProperties,shouldStartInlineEdit,type PreviewBound} from '@/lib/lyricforge/preview-interaction';
 import {Choice,IconButton,Range} from './Controls';
 import CreativeDiagnostics,{creativeDiagnosticKey,dedupeCreativeDiagnostics} from './CreativeDiagnostics';
 
@@ -79,7 +79,7 @@ export default function Preview({onFormat,onLeft,onRight,onOpenProperties,qualit
     let movement=0,longPressed=false;
     store.begin();setDragging(true);e.currentTarget.setPointerCapture(e.pointerId);
     const longPressTimer=(pointerType==='touch'||pointerType==='pen')?window.setTimeout(()=>{if(shouldOpenPreviewProperties(pointerType,performance.now()-startedAt,movement)){longPressed=true;setDragging(false);onOpenProperties?.(clip.id);}},520):0;
-    const move=(event:PointerEvent)=>{const px=event.clientX-startX,py=event.clientY-startY;movement=Math.max(movement,Math.hypot(px,py));if(movement>10&&longPressTimer)window.clearTimeout(longPressTimer);if(longPressed)return;const dx=px/rect.width,dy=py/rect.height;if(corner)store.patch(clip.id,{style:{...clip.style,scale:clamp(s.scale+dx*2,.1,5)}});else{let nx=s.x+dx,ny=s.y+dy;if(Math.abs(nx-.5)<.009)nx=.5;if(Math.abs(ny-.5)<.009)ny=.5;store.patch(clip.id,{style:{...clip.style,x:clamp(nx,-.25,1.25),y:clamp(ny,-.25,1.25)}});}};
+    const move=(event:PointerEvent)=>{const px=event.clientX-startX,py=event.clientY-startY;movement=Math.max(movement,Math.hypot(px,py));if(movement>10&&longPressTimer)window.clearTimeout(longPressTimer);if(longPressed||!shouldMovePreviewItem(pointerType,movement))return;const dx=px/rect.width,dy=py/rect.height;if(corner)store.patch(clip.id,{style:{...clip.style,scale:clamp(s.scale+dx*2,.1,5)}});else{let nx=s.x+dx,ny=s.y+dy;if(Math.abs(nx-.5)<.009)nx=.5;if(Math.abs(ny-.5)<.009)ny=.5;store.patch(clip.id,{style:{...clip.style,x:clamp(nx,-.25,1.25),y:clamp(ny,-.25,1.25)}});}};
     const up=()=>{if(longPressTimer)window.clearTimeout(longPressTimer);store.end();setDragging(false);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);};
     window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);
   };
