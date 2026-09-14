@@ -20,7 +20,10 @@ export function normalizeTranscribedWords(input:Word[]):Word[]{
  const out:Word[]=[];
  for(const word of words){
   const prev=out.at(-1);
-  const same=prev&&prev.text.toLocaleLowerCase()===word.text.toLocaleLowerCase()&&Math.abs(prev.start-word.start)<=600&&word.start<=prev.end+250;
+  const sameText=!!prev&&prev.text.toLocaleLowerCase()===word.text.toLocaleLowerCase();
+  const overlap=prev?Math.min(prev.end,word.end)-Math.max(prev.start,word.start):0;
+  const minDuration=prev?Math.max(1,Math.min(prev.end-prev.start,word.end-word.start)):1;
+  const same=!!prev&&sameText&&(Math.abs(prev.start-word.start)<=120||overlap/minDuration>=.5);
   if(same){
    const prevConfidence=prev.confidence??-1,nextConfidence=word.confidence??-1;
    if(nextConfidence>prevConfidence)out[out.length-1]=word;
