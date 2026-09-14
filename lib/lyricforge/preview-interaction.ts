@@ -16,3 +16,7 @@ export function shouldStartInlineEdit(previousId:string|undefined,previousAt:num
 export function shouldOpenPreviewProperties(pointerType:string,elapsed:number,movement:number,threshold=520,tolerance=10):boolean{
   return (pointerType==='touch'||pointerType==='pen')&&elapsed>=threshold&&movement<=tolerance;
 }
+
+export function shouldMovePreviewItem(pointerType:string,movement:number,coarseThreshold=10):boolean{
+  return pointerType==='mouse'||movement>coarseThreshold;
+}
