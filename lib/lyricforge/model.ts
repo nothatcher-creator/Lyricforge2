@@ -2,6 +2,7 @@ import type {AnimationInstance,AnimationRole,EffectInstance,ProjectDependency,Tr
 export const BRAND = { name: 'LyricForge', fileExtension: 'lyricforge', version: 1 };
 export type Kind = 'audio'|'lyrics'|'text'|'image'|'video'|'visualizer'|'effect';
 export type Section = 'Verse'|'Chorus'|'Bridge'|'Intro'|'Outro'|'Instrumental';
+export type AlignmentQuality = 'good'|'check'|'uncertain';
 export type Animation = 'None'|'Fade'|'Pop'|'Bounce'|'Slide'|'Zoom'|'Blur In'|'Blur Out'|'Typewriter'|'Word Reveal'|'Character Reveal'|'Stretch'|'Shake'|'Pulse'|'Flicker'|'Glitch'|'Neon Flicker'|'Spin'|'Wave'|'Float'|'Rise'|'Fall';
 export const ANIMATIONS: Animation[] = ['None','Fade','Pop','Bounce','Slide','Zoom','Blur In','Blur Out','Typewriter','Word Reveal','Character Reveal','Stretch','Shake','Pulse','Flicker','Glitch','Neon Flicker','Spin','Wave','Float','Rise','Fall'];
 export interface Word { text:string; start:number; end:number; confidence?:number; emphasized?:boolean; }
@@ -17,7 +18,7 @@ export interface Style {
 }
 export interface Clip {
   id:string; trackId:string; kind:Kind; start:number; end:number; name:string; text:string;
-  assetId?:string; offset:number; loop:boolean; section:Section; words:Word[]; confidence?:number; timingSource?:'manual'|'estimated'|'detected';
+  assetId?:string; offset:number; loop:boolean; section:Section; words:Word[]; confidence?:number; timingSource?:'manual'|'estimated'|'detected'|'aligned'; alignmentConfidence?:number; alignmentQuality?:AlignmentQuality;
   style:Partial<Style>; keyframes:Keyframe[]; group?:string;
   animations?:Partial<Record<AnimationRole,AnimationInstance>>; effects:EffectInstance[];
   fit:'cover'|'contain'; brightness:number; contrast:number; saturation:number; hue:number; blend:GlobalCompositeOperation;
