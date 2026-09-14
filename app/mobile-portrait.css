@@ -2,9 +2,12 @@
   .mode-phone-portrait .track-lane{touch-action:pan-x pan-y}
   .mode-phone-portrait .library-panel{left:4px;right:4px;height:min(68dvh,640px);max-height:calc(100dvh - 110px)}
   .mode-phone-portrait .inspector-container{left:4px;right:4px;height:min(62dvh,600px);max-height:calc(100dvh - 110px)}
-  .mode-phone-portrait .tool-rail-tabs{gap:1px!important;padding:0 2px!important;scroll-snap-type:x proximity;scroll-padding-inline:2px}
+  .mode-phone-portrait .tool-rail-tabs{flex:1!important;min-width:0;width:auto!important;gap:1px!important;padding:0 2px!important;scroll-snap-type:x proximity;scroll-padding-inline:2px}
   .mode-phone-portrait .tool-rail-tab{width:49px;min-width:49px;height:50px!important;min-height:50px;gap:3px!important;font-size:8px!important;scroll-snap-align:start}
   .mode-phone-portrait .tool-rail-tab svg{width:19px!important;height:19px!important}
+  .mode-phone-portrait .portrait-preview-button{display:flex;flex:0 0 54px;width:54px;height:50px;min-height:50px;align-items:center;justify-content:center;flex-direction:column;gap:3px;border:1px solid #4b4134;border-radius:8px;background:#312b24;color:#f2b66d;font-size:8px;font-weight:600;order:-1}
+  .mode-phone-portrait .portrait-preview-button svg{width:19px;height:19px}
+  .mode-phone-portrait.left-collapsed.right-collapsed .portrait-preview-button{background:#443624;border-color:#b4814b;color:#ffd39a}
   .mode-phone-portrait .panel-tabs{overflow-x:auto;overflow-y:hidden;justify-content:flex-start!important;gap:4px!important;padding:0 8px!important;height:42px!important;min-height:42px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .mode-phone-portrait .panel-tabs::-webkit-scrollbar{display:none}
   .mode-phone-portrait .panel-tabs [data-slot=tabs-trigger]{flex:0 0 auto!important;min-width:88px;height:42px!important;padding:0 10px!important}
@@ -17,5 +20,6 @@
 
 @media (max-width:390px) and (orientation:portrait){
   .mode-phone-portrait .tool-rail-tab{width:47px;min-width:47px}
+  .mode-phone-portrait .portrait-preview-button{flex-basis:50px;width:50px}
   .mode-phone-portrait .preset-grid{grid-template-columns:1fr}
 }

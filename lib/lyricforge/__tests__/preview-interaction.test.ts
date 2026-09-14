@@ -16,3 +16,25 @@ describe('inline edit tap timing',()=>{
     expect(shouldStartInlineEdit('text-1',1000,'text-1',1500)).toBe(false);
   });
 });
+
+describe('preview long press',()=>{
+  it('opens properties only for a stationary coarse-pointer press',async()=>{
+    const {shouldOpenPreviewProperties}=await import('../preview-interaction');
+    expect(shouldOpenPreviewProperties('touch',540,3)).toBe(true);
+    expect(shouldOpenPreviewProperties('pen',600,5)).toBe(true);
+    expect(shouldOpenPreviewProperties('touch',300,2)).toBe(false);
+    expect(shouldOpenPreviewProperties('touch',600,18)).toBe(false);
+    expect(shouldOpenPreviewProperties('mouse',700,0)).toBe(false);
+  });
+
+  it('does not move touch items for small long-press jitter',async()=>{
+    const mod=await import('../preview-interaction');
+    const fn=(mod as any).shouldMovePreviewItem;
+    expect(typeof fn).toBe('function');
+    if(typeof fn!=='function')return;
+    expect(fn('touch',5)).toBe(false);
+    expect(fn('pen',7)).toBe(false);
+    expect(fn('touch',12)).toBe(true);
+    expect(fn('mouse',1)).toBe(true);
+  });
+});
