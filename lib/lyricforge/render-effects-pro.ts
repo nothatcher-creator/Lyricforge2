@@ -11,7 +11,7 @@ export interface ColorAdjustValues{exposure:number;temperature:number;tint:numbe
 export function applyColorAdjustPixel(rgba:[number,number,number,number],values:ColorAdjustValues):[number,number,number,number]{
   let [r,g,b,a]=rgba;
   const exposure=2**values.exposure;r*=exposure;g*=exposure;b*=exposure;
-  const temperature=values.temperature/100*32;r+=temperature;b-=temperature;
+  const temperature=values.temperature/100*60;r+=temperature;b-=temperature;
   const tint=values.tint/100*24;r+=tint*.55;g-=tint;b+=tint*.55;
   let luminance=(r*.2126+g*.7152+b*.0722)/255;
   const shadows=(1-clamp(luminance*2))*values.shadows/100*70;
