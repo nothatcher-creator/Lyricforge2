@@ -1,5 +1,6 @@
 import type {ResolvedEffect} from './effect-runtime';
 import type {RenderSurfacePool} from './render-surfaces';
+import {PRO_EFFECT_HANDLERS} from './render-effects-pro';
 
 export type EffectCanvasContext=CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D;
 export interface EffectRenderEnvironment{
@@ -128,6 +129,7 @@ export const EFFECT_HANDLERS:Record<string,EffectRenderHandler>={
   'effect.light-streak':renderLightStreak,
   'effect.glitch':renderGlitch,
   'effect.beat-reactive':renderBeatReactive,
+  ...PRO_EFFECT_HANDLERS,
 };
 
 export function renderEffect(ctx:EffectCanvasContext,source:CanvasImageSource,effect:ResolvedEffect,env:EffectRenderEnvironment){
