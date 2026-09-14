@@ -12,3 +12,7 @@ export function pickTextBound(bounds:PreviewBound[],clips:Pick<Clip,'id'|'kind'>
 export function shouldStartInlineEdit(previousId:string|undefined,previousAt:number,currentId:string,now:number,threshold=360):boolean{
   return previousId===currentId&&now>=previousAt&&now-previousAt<=threshold;
 }
+
+export function shouldOpenPreviewProperties(pointerType:string,elapsed:number,movement:number,threshold=520,tolerance=10):boolean{
+  return (pointerType==='touch'||pointerType==='pen')&&elapsed>=threshold&&movement<=tolerance;
+}
