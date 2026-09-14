@@ -16,4 +16,17 @@ describe('mobile timeline ergonomics',()=>{
     expect(css).toContain('.mode-phone-portrait .timeline-toolbar{overflow-x:auto');
     expect(css).toMatch(/\[data-transition-handle\]\{[^}]*min-height:\s*36px/);
   });
+  it('lets a one-finger lane drag become timeline scrolling before a touch seek is committed',()=>{
+    expect(timeline).toContain('classifyTimelineTouchGesture');
+    expect(timeline).toContain("e.pointerType==='touch'");
+    expect(css).toContain('.mode-phone-portrait .track-lane{touch-action:pan-x pan-y');
+  });
+  it('gives portrait sheets more room and lets nested menu tabs scroll instead of squeezing',()=>{
+    expect(css).toContain('.mode-phone-portrait .library-panel{');
+    expect(css).toContain('height:min(68dvh,640px)');
+    expect(css).toContain('.mode-phone-portrait .inspector-container{');
+    expect(css).toContain('height:min(62dvh,600px)');
+    expect(css).toContain('.mode-phone-portrait .panel-tabs{overflow-x:auto');
+    expect(css).toContain('flex:0 0 auto!important;min-width:88px');
+  });
 });
