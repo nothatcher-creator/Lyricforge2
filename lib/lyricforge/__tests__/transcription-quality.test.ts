@@ -35,6 +35,19 @@ describe('local transcription quality',()=>{
     ]);
   });
 
+  it('keeps legitimate repeated lyric words when their timestamps are sequential',async()=>{
+    const {normalizeTranscribedWords}=await import('../transcription');
+    expect(normalizeTranscribedWords([
+      {text:'no',start:1000,end:1240},
+      {text:'no',start:1300,end:1540},
+      {text:'no',start:1600,end:1840},
+    ])).toEqual([
+      {text:'no',start:1000,end:1240},
+      {text:'no',start:1300,end:1540},
+      {text:'no',start:1600,end:1840},
+    ]);
+  });
+
   it('breaks long detections into shorter readable lyric lines',async()=>{
     const {wordsToClips}=await import('../transcription');
     const words:Word[]=Array.from({length:8},(_,i)=>({text:`word${i+1}`,start:i*800,end:i*800+500}));
