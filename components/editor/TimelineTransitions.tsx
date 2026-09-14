@@ -3,6 +3,7 @@
 import type {TransitionInstance} from '@/lib/lyricforge/creative-assets';
 import {creativeRegistry} from '@/lib/lyricforge/creative-registry';
 import {store,useEditor} from '@/lib/lyricforge/store';
+import {audioEngine} from '@/lib/lyricforge/audio';
 import {TRANSITION_KINDS,isValidTransitionPair,transitionWindow} from '@/lib/lyricforge/transition-runtime';
 import type {Clip} from '@/lib/lyricforge/model';
 
@@ -99,5 +100,19 @@ export default function TimelineTransitions({trackId,scale}:{trackId:string;scal
     </button>);
   }
 
-  return <div className="timeline-transition-layer" aria-hidden={controls.length===0||undefined}>{controls}</div>;
+  const alignmentFlags=project.clips
+    .filter(clip=>clip.trackId===trackId&&clip.kind==='lyrics'&&(clip.alignmentQuality==='check'||clip.alignmentQuality==='uncertain'))
+    .map(clip=><button
+      key={`alignment:${clip.id}`}
+      type="button"
+      className={`alignment-flag ${clip.alignmentQuality}`}
+      style={{left:Math.max(3,clip.start/1000*scale+3),position:'absolute',top:3,zIndex:5,width:18,height:18,borderRadius:9,border:'1px solid currentColor',background:'rgba(20,18,17,.92)',fontSize:11,fontWeight:800,lineHeight:'16px',padding:0}}
+      aria-label={`${clip.alignmentQuality==='uncertain'?'Uncertain':'Check'} lyric alignment: ${label(clip)}`}
+      title={`${clip.alignmentQuality==='uncertain'?'Uncertain':'Check'} alignment · ${Math.round((clip.alignmentConfidence??0)*100)}%`}
+      onPointerDown={event=>event.stopPropagation()}
+      onClick={event=>{event.stopPropagation();store.select([clip.id]);audioEngine.seek(clip.start);}}
+    >!</button>);
+
+  const hasOverlay=controls.length>0||alignmentFlags.length>0;
+  return <div className="timeline-transition-layer" aria-hidden={!hasOverlay||undefined}>{controls}{alignmentFlags}</div>;
 }
