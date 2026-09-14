@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./mobile-portrait.css";
 
 export const metadata: Metadata = {
   title: "LyricForge — Lyric Video Studio",
