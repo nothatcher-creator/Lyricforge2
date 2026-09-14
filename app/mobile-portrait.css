@@ -1,0 +1,21 @@
+@media (max-width:760px) and (orientation:portrait){
+  .mode-phone-portrait .track-lane{touch-action:pan-x pan-y}
+  .mode-phone-portrait .library-panel{left:4px;right:4px;height:min(68dvh,640px);max-height:calc(100dvh - 110px)}
+  .mode-phone-portrait .inspector-container{left:4px;right:4px;height:min(62dvh,600px);max-height:calc(100dvh - 110px)}
+  .mode-phone-portrait .tool-rail-tabs{gap:1px!important;padding:0 2px!important;scroll-snap-type:x proximity;scroll-padding-inline:2px}
+  .mode-phone-portrait .tool-rail-tab{width:49px;min-width:49px;height:50px!important;min-height:50px;gap:3px!important;font-size:8px!important;scroll-snap-align:start}
+  .mode-phone-portrait .tool-rail-tab svg{width:19px!important;height:19px!important}
+  .mode-phone-portrait .panel-tabs{overflow-x:auto;overflow-y:hidden;justify-content:flex-start!important;gap:4px!important;padding:0 8px!important;height:42px!important;min-height:42px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .mode-phone-portrait .panel-tabs::-webkit-scrollbar{display:none}
+  .mode-phone-portrait .panel-tabs [data-slot=tabs-trigger]{flex:0 0 auto!important;min-width:88px;height:42px!important;padding:0 10px!important}
+  .mode-phone-portrait .panel-scroll{padding-left:14px;padding-right:14px}
+  .mode-phone-portrait .secondary-actions{gap:6px;flex-wrap:wrap}
+  .mode-phone-portrait .secondary-actions button{min-height:40px;min-width:120px}
+  .mode-phone-portrait .two-fields{grid-template-columns:1fr}
+  .mode-phone-portrait .creative-effect-actions{grid-template-columns:1fr}
+}
+
+@media (max-width:390px) and (orientation:portrait){
+  .mode-phone-portrait .tool-rail-tab{width:47px;min-width:47px}
+  .mode-phone-portrait .preset-grid{grid-template-columns:1fr}
+}
