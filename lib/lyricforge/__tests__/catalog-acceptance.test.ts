@@ -112,16 +112,16 @@ describe('creative catalog acceptance',()=>{
   const packages=packageMap(fixtures);
   const storage=createMemoryCatalogStorage();
   const service=new CatalogService({storage,appVersion:APP_VERSION,builtins:[],fetchIndex:async()=>index});
-  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,isTrustedRuntime:(type,runtimeId)=>isTrustedRuntime(runtimeId),fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
+  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,isTrustedRuntime,fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
   await service.load();
   for(const fixture of fixtures)await installer.install(fixture.manifest);
   await service.refreshLocalState();
   const installed=service.search('',{filter:'Installed'});
   expect(installed.map(item=>item.type).sort()).toEqual(['effect','font','text-animation','transition']);
   expect(catalogFontFamily('catalog.font.bebas-neue','1.0.0','Bebas Neue')).toContain('catalog-font--');
-  for(const fixture of fixtures.filter(item=>item.manifest.type!=='font'))expect(isTrustedRuntime(fixture.manifest.runtimeId!)).toBe(true);
+  for(const fixture of fixtures.filter(item=>item.manifest.type!=='font'))expect(isTrustedRuntime(fixture.manifest.type as 'effect'|'transition'|'text-animation',fixture.manifest.runtimeId!)).toBe(true);
   creativeRegistry.replaceInstalled(fixtures.filter(item=>item.manifest.type!=='font').map(item=>definitionFromInstalledManifest(item.manifest)));
-  expect(creativeRegistry.resolve('catalog.effect.neon-pulse','1.0.0')?.runtime).toBe('effect.glow');
+  expect(creativeRegistry.resolve('effect','catalog.effect.neon-pulse','1.0.0')?.runtime).toBe('effect.glow');
 
   const offline=new CatalogService({storage,appVersion:APP_VERSION,builtins:[],fetchIndex:async()=>{throw new Error('offline');}});
   await offline.load();
@@ -141,7 +141,7 @@ describe('creative catalog acceptance',()=>{
   const index=indexFor([v1,v2]);
   const packages=packageMap([v1,v2]);
   const storage=createMemoryCatalogStorage();
-  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,isTrustedRuntime:(type,runtimeId)=>isTrustedRuntime(runtimeId),fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
+  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,isTrustedRuntime,fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
   await installer.install(v1.manifest);
   await installer.install(v2.manifest);
   expect(await storage.getCurrentVersion('effect',v1.manifest.id)).toBe('1.1.0');
