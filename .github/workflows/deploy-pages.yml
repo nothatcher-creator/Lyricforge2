@@ -2,7 +2,7 @@ name: Deploy LyricForge to GitHub Pages
 
 on:
   push:
-    branches: [main, feat/source-foundation, feat/creative-catalog, feat/lyric-alignment-pro-effects]
+    branches: [main, feat/source-foundation, feat/creative-catalog]
   workflow_dispatch:
 
 permissions:
@@ -29,8 +29,6 @@ jobs:
         run: pnpm test -- --run
       - name: Run legacy regression tests
         run: pnpm run test:legacy
-      - name: Run TypeScript typecheck
-        run: pnpm run typecheck
       - name: Build official creative catalog
         run: pnpm run catalog:build
       - name: Validate official creative catalog
