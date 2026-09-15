@@ -40,7 +40,7 @@ describe('trusted creative render operations',()=>{
     const {ctx,calls}=fakeContext();
     const source={tag:'source'} as unknown as CanvasImageSource;
     const effect:ResolvedEffect={instanceId:'fx',assetId:'builtin.effect.brightness',version:'1.0.0',runtime:'effect.brightness',params:{amount:1.25},quality:'full',scope:'clip',audioReactive:0};
-    renderEffect(ctx,source,effect,{width:100,height:50,frameIndex:2,timeMs:500});
+    renderEffect(ctx,source,effect,{width:100,height:50,frameIndex:2,timeMs:500,quality:'export'});
     expect(calls).toEqual([source]);
   });
 
@@ -57,8 +57,8 @@ describe('trusted creative render operations',()=>{
     const full=fakeContext();
     const low=fakeContext();
     const base:ResolvedEffect={instanceId:'grain',assetId:'builtin.effect.grain',version:'1.0.0',runtime:'effect.grain',params:{amount:.5,size:1},quality:'full',scope:'clip',audioReactive:0};
-    renderEffect(full.ctx,source,base,{width:320,height:180,frameIndex:30,timeMs:1000});
-    renderEffect(low.ctx,source,{...base,quality:'simplified'},{width:320,height:180,frameIndex:30,timeMs:1000});
+    renderEffect(full.ctx,source,base,{width:320,height:180,frameIndex:30,timeMs:1000,quality:'export'});
+    renderEffect(low.ctx,source,{...base,quality:'simplified'},{width:320,height:180,frameIndex:30,timeMs:1000,quality:'preview-low'});
     const fullRects=full.trace.filter(op=>op[0]==='fillRect').length;
     const lowRects=low.trace.filter(op=>op[0]==='fillRect').length;
     expect(lowRects).toBeLessThan(fullRects);
@@ -80,8 +80,8 @@ describe('trusted creative render operations',()=>{
     const first=fakeContext();
     const second=fakeContext();
     const grain:ResolvedEffect={instanceId:'grain',assetId:'builtin.effect.grain',version:'1.0.0',runtime:'effect.grain',params:{amount:.5,size:1},quality:'full',scope:'clip',audioReactive:0};
-    renderEffect(first.ctx,source,grain,{width:160,height:90,frameIndex:30,timeMs:1000});
-    renderEffect(second.ctx,source,grain,{width:160,height:90,frameIndex:60,timeMs:1000});
+    renderEffect(first.ctx,source,grain,{width:160,height:90,frameIndex:30,timeMs:1000,quality:'export'});
+    renderEffect(second.ctx,source,grain,{width:160,height:90,frameIndex:60,timeMs:1000,quality:'export'});
     expect(second.trace).toEqual(first.trace);
   });
 
