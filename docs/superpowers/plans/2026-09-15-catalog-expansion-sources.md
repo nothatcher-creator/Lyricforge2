@@ -17,6 +17,8 @@
 - External assets must record source/provider/license metadata and pinned bytes/revisions.
 - Openverse-discovered/Wikimedia items must link to the original work and retain required attribution.
 - Initial target before Elements: at least 12 fonts, 12 effects, 12 transitions, 12 text animations.
+- Final official catalog must contain at least three distinct provider labels overall.
+- Prefer fewer verified external items plus original LyricForge content over weakening license/provenance checks.
 
 ---
 
@@ -52,7 +54,7 @@ Cover accepted legacy manifests with no `source`, accepted new manifests with `s
 
 - [ ] **Step 2: Add RED attribution tests**
 
-For licenses that require attribution in the seeded catalog policy, assert external entries fail build validation when creator/attribution metadata is absent.
+For externally sourced entries, require `source.provider`, `source.itemUrl`, and the existing license fields. For attribution-bearing licenses used by seeded items, require `source.creator` and `source.attribution` as well.
 
 - [ ] **Step 3: Run catalog validation/build tests and confirm RED**
 
@@ -60,7 +62,7 @@ Run: `pnpm vitest run lib/lyricforge/__tests__/catalog-validation.test.ts lib/ly
 
 - [ ] **Step 4: Implement additive type/schema/build support**
 
-Keep schemaVersion `1`; the new field is optional. Build scripts must copy source metadata into generated manifests without mutating older entries.
+Keep schemaVersion `1`; the new field is optional for legacy manifests. Build scripts copy source metadata into generated manifests without mutating old installed entries.
 
 - [ ] **Step 5: Run focused tests and confirm GREEN**
 
@@ -97,7 +99,7 @@ Assert provider chip rendering and provider filter behavior while preserving Bui
 
 - [ ] **Step 4: Implement provider-aware service/UI**
 
-Keep provider filtering additive and mobile-safe; cards must remain installable with the current installer flow.
+Keep provider filtering additive and mobile-safe; cards remain installable through the current installer flow. Provider chips use `source.provider` when present and `LyricForge` for original official assets.
 
 - [ ] **Step 5: Run focused tests and confirm GREEN**
 
@@ -123,7 +125,7 @@ Keep provider filtering additive and mobile-safe; cards must remain installable 
 
 - [ ] **Step 2: Add at least six additional fonts**
 
-Choose diverse display/body families from openly licensed upstream sources. Every source entry includes provider metadata (normally Google Fonts), exact source page/revision, OFL license URL, and package file SHA after catalog build.
+Choose diverse display/body families from openly licensed upstream sources. Every source entry includes provider `Google Fonts`, exact source page/revision, OFL license URL, and package file SHA after catalog build.
 
 - [ ] **Step 3: Rebuild catalog and run font/build tests**
 
@@ -154,15 +156,15 @@ Run: `pnpm catalog:build && pnpm vitest run lib/lyricforge/__tests__/catalog-bui
 
 - [ ] **Step 2: Seed effects**
 
-Add at least six more presets spanning dreamy bloom, cold cinematic, warm film, crushed monochrome, ghost trail, high-energy strobe, soft-focus glow, posterized motion, retro CRT, bleach contrast, or hazy diffusion as available through trusted runtimes.
+Add at least six more original LyricForge presets spanning dreamy bloom, cold cinematic, warm film, crushed monochrome, ghost trail, high-energy strobe, soft-focus glow, posterized motion, retro CRT, bleach contrast, or hazy diffusion as available through trusted runtimes.
 
 - [ ] **Step 3: Seed transitions**
 
-Add at least six more presets using existing trusted transition runtimes: directional pushes/wipes, blur/zoom/flash/glitch/film variants, and impact cuts.
+Add at least six more original LyricForge presets using existing trusted transition runtimes: directional pushes/wipes, blur/zoom/flash/glitch/film variants, and impact cuts.
 
 - [ ] **Step 4: Seed text animations**
 
-Add at least six more presets using existing trusted animation runtimes: bounce/blur/type-on/stagger/tracking/elastic/shake/karaoke/fade/scale variations.
+Add at least six more original LyricForge presets using existing trusted animation runtimes: bounce/blur/type-on/stagger/tracking/elastic/shake/karaoke/fade/scale variations.
 
 - [ ] **Step 5: Rebuild catalog and verify runtime trust**
 
@@ -188,12 +190,12 @@ Assert every online external item has a non-empty provider, HTTPS item URL, lice
 
 - [ ] **Step 2: Add source-diversity assertion**
 
-Require at least two provider labels across the official catalog before Elements are added, while allowing original LyricForge entries to remain the majority of executable-style presets.
+Require at least three provider labels across the final official catalog. Before Elements land, allow the intermediate existing-category build to have two labels (`LyricForge` and `Google Fonts`); the Elements plan must add a third verified provider path or explicitly fail the final acceptance gate rather than weakening it.
 
 - [ ] **Step 3: Run catalog build + validation**
 
 Run: `pnpm catalog:build && pnpm catalog:validate && pnpm test`
-Expected: PASS.
+Expected: PASS for the intermediate catalog stage, with the final three-provider assertion activated once Elements content is present.
 
 - [ ] **Step 4: Commit**
 
