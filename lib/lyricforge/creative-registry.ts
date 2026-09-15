@@ -4,6 +4,7 @@ import {BUILTIN_CREATIVE_DEFINITIONS} from './creative-presets';
 export type CreativeQuality='preview-low'|'preview-high'|'export';
 export type CreativeTarget='lyrics'|'text'|'image'|'video'|'visualizer'|'master';
 export type QualityBehavior='full'|'simplified'|'bypass';
+export type EffectCategory='adjust'|'transform'|'blur-sharpen'|'distort'|'stylize'|'light'|'time'|'audio-reactive';
 
 export type ParamDefinition=
  | {kind:'number';default:number;min:number;max:number;step:number;keyframeable:boolean;neutral?:number}
@@ -21,6 +22,8 @@ export interface CreativeDefinition{
   runtime:string;
   params:Record<string,ParamDefinition>;
   quality:{'preview-low':QualityBehavior;'preview-high':QualityBehavior;export:'full'};
+  category?:EffectCategory;
+  description?:string;
   compatibleVersions?:readonly string[];
   bypassWhenNeutral?:readonly string[];
 }
@@ -44,6 +47,8 @@ function cloneDefinition(definition:CreativeDefinition,allowCompatibility=true):
     runtime:definition.runtime,
     params,
     quality:{...definition.quality},
+    ...(definition.category?{category:definition.category}:{}),
+    ...(definition.description?{description:definition.description}:{}),
     ...(allowCompatibility&&definition.compatibleVersions?{compatibleVersions:[...definition.compatibleVersions]}:{}),
     ...(definition.bypassWhenNeutral?{bypassWhenNeutral:[...definition.bypassWhenNeutral]}:{}),
   };

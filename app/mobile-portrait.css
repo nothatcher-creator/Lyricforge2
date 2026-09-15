@@ -1,3 +1,10 @@
+.effect-browser{display:grid;gap:8px;margin:10px 0 12px;min-width:0}
+.effect-browser-search{width:100%;min-height:38px;border:1px solid #3b3c43;border-radius:7px;background:#25262c;color:#e6e6eb;padding:8px 10px}
+.effect-browser-search::placeholder{color:#7f818d}.effect-browser-search:focus{border-color:#9f7953}
+.effect-browser-categories{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.effect-browser-categories::-webkit-scrollbar{display:none}.effect-browser-categories button{flex:0 0 auto;min-height:30px;border:1px solid #3d3e46;border-radius:999px;background:#292a30;color:#aeb0ba;padding:5px 9px;font-size:11px;white-space:nowrap}.effect-browser-categories button:hover{border-color:#5b5144;color:#e8c395}.effect-browser-categories button.active{border-color:#8f6941;background:#3a3025;color:#f2b66d}
+.effect-browser-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:7px;min-width:0}.effect-browser-card{display:grid;grid-template-columns:1fr auto;grid-template-areas:'title add' 'category add' 'description description';gap:3px 7px;min-width:0;min-height:82px;text-align:left;border:1px solid #393a42;border-radius:8px;background:#25262b;color:#dfe0e6;padding:9px;align-content:start}.effect-browser-card:hover{border-color:#6c563c;background:#2d2b28}.effect-browser-card-title{grid-area:title;font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis}.effect-browser-card-category{grid-area:category;color:#d6aa72;font-size:9px;text-transform:uppercase;letter-spacing:.5px}.effect-browser-card-description{grid-area:description;color:#9799a4;font-size:10px;line-height:1.35;margin-top:3px}.effect-browser-card-add{grid-area:add;align-self:start;color:#f2b66d;font-size:10px;white-space:nowrap}.effect-browser-empty{grid-column:1/-1;padding:8px 2px}.effect-browser-quick-add{display:grid;gap:7px;padding:9px 0 12px;border-top:1px solid #34353c}
+
 @media (max-width:760px) and (orientation:portrait){
   .mode-phone-portrait .track-lane{touch-action:pan-x pan-y}
   .mode-phone-portrait .library-panel{left:4px;right:4px;height:min(68dvh,640px);max-height:calc(100dvh - 110px)}
@@ -16,10 +23,29 @@
   .mode-phone-portrait .secondary-actions button{min-height:40px;min-width:120px}
   .mode-phone-portrait .two-fields{grid-template-columns:1fr}
   .mode-phone-portrait .creative-effect-actions{grid-template-columns:1fr}
+  .mode-phone-portrait .effect-browser-search{width:100%;min-height:44px;font-size:16px}
+  .mode-phone-portrait .effect-browser-categories{overflow-x:auto;flex-wrap:nowrap;scroll-snap-type:x proximity;padding-bottom:4px}
+  .mode-phone-portrait .effect-browser-categories button{min-height:38px;padding:7px 12px;scroll-snap-align:start}
+  .mode-phone-portrait .effect-browser-grid{grid-template-columns:1fr}
+  .mode-phone-portrait .effect-browser-card{width:100%;min-height:74px;padding:11px}
+  .mode-phone-portrait .effect-browser-card-description{font-size:11px}
+  .alignment-dialog{width:calc(100vw - 18px)!important;max-width:calc(100vw - 18px)!important;max-height:88dvh;overflow-y:auto;padding:16px!important}
+  .alignment-dialog .dialog-action-row{display:grid;grid-template-columns:1fr;gap:8px}
+  .alignment-dialog .dialog-action-row button{min-height:46px}
+  .alignment-quality{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .alignment-quality>div{display:flex;min-height:64px;flex-direction:column;align-items:center;justify-content:center;border:1px solid #4b4134;border-radius:10px;background:#221f1b}
+  .alignment-quality strong{font-size:20px}
+  .alignment-quality span{font-size:11px}
+  .alignment-quality-good{color:#91d3a0}.alignment-quality-check{color:#e8bd6d}.alignment-quality-uncertain{color:#ef8c7c}
+  .alignment-review{display:grid;gap:6px;max-height:190px;overflow:auto}
+  .alignment-review>div{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;min-height:38px}
+  .alignment-paste-offer{display:grid;grid-template-columns:1fr auto auto;gap:7px;align-items:center;margin:8px 12px;padding:9px;border:1px solid #5a4935;border-radius:10px;background:#30281f}
+  .alignment-paste-offer span{min-width:0;display:grid}.alignment-paste-offer small{opacity:.72}.alignment-paste-offer button{min-height:40px}
 }
 
 @media (max-width:390px) and (orientation:portrait){
   .mode-phone-portrait .tool-rail-tab{width:47px;min-width:47px}
   .mode-phone-portrait .portrait-preview-button{flex-basis:50px;width:50px}
   .mode-phone-portrait .preset-grid{grid-template-columns:1fr}
+  .alignment-paste-offer{grid-template-columns:1fr auto}.alignment-paste-offer>button:last-child{grid-column:2}
 }

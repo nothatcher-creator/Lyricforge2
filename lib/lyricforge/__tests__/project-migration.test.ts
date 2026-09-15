@@ -19,6 +19,22 @@ describe("migrateProjectDocument", () => {
     expect((migrated.clips as any[])[0]).toMatchObject({ id: "fx-old", kind: "effect", start: 100, end: 900, effects: [] });
   });
 
+  it("preserves existing built-in effect ids, versions, params, and keyframes without requiring new metadata", () => {
+    const legacyEffects = [
+      { id: "glow-old", assetId: "builtin.effect.glow", version: "1.0.0", enabled: true, params: { radius: 12, intensity: .4 }, keyframes: {} },
+      { id: "brightness-old", assetId: "builtin.effect.brightness", version: "1.0.0", enabled: true, params: { amount: 1.15 }, keyframes: {} },
+      { id: "vhs-old", assetId: "builtin.effect.vhs", version: "1.0.0", enabled: true, params: { scanlines: .3, noise: .15, jitter: .1 }, keyframes: {} },
+    ];
+    const migrated = migrateProjectDocument({
+      clips: [{ id: "legacy-text", kind: "text", start: 0, end: 1000, effects: legacyEffects }],
+      masterEffects: [legacyEffects[1]],
+      transitions: [],
+      duration: 1000,
+    });
+    expect((migrated.clips as any[])[0].effects).toEqual(legacyEffects);
+    expect(migrated.masterEffects).toEqual([legacyEffects[1]]);
+  });
+
   it("is idempotent for already migrated creative fields", () => {
     const once = migrateProjectDocument({ clips: [], masterEffects: [], transitions: [], dependencies: [] });
     expect(migrateProjectDocument(once)).toEqual(once);

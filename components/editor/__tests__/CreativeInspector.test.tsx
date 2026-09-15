@@ -96,6 +96,22 @@ describe('CreativeInspector',()=>{
     expect(screen.getByLabelText('Disable Intro role').getAttribute('data-state')).toBe('checked');
   });
 
+  it('searches and filters the categorized effect browser and adds from a card',()=>{
+    renderInspector('text-a','effects');
+    const search=screen.getByLabelText('Search effects');
+    expect(screen.getByRole('button',{name:'Filter effects: Time'})).toBeTruthy();
+    fireEvent.change(search,{target:{value:'film burn'}});
+    expect(screen.getByRole('button',{name:'Add Film Burn effect'})).toBeTruthy();
+    expect(screen.queryByRole('button',{name:'Add Glow effect'})).toBeNull();
+    fireEvent.change(search,{target:{value:''}});
+    fireEvent.click(screen.getByRole('button',{name:'Filter effects: Time'}));
+    expect(screen.getByRole('button',{name:'Add Posterize Time effect'})).toBeTruthy();
+    expect(screen.getByRole('button',{name:'Add Echo effect'})).toBeTruthy();
+    expect(screen.queryByRole('button',{name:'Add Glow effect'})).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Add Echo effect'}));
+    expect(store.project.clips.find(clip=>clip.id==='text-a')?.effects.at(-1)?.assetId).toBe('builtin.effect.echo');
+  });
+
   it('updates effect choices immediately when installed trusted definitions change',async()=>{
     const user=userEvent.setup();
     renderInspector('text-a','effects');
@@ -103,8 +119,8 @@ describe('CreativeInspector',()=>{
     const installed={...trusted,id:'catalog.effect.neon-pulse',version:'1.2.0',name:'Neon Pulse'};
     act(()=>creativeRegistry.replaceInstalled([installed]));
     await user.click(screen.getByLabelText('Clip effect preset'));
-    expect(await screen.findByText('Neon Pulse')).toBeTruthy();
-    await user.click(screen.getByText('Neon Pulse'));
+    const option=await screen.findByRole('option',{name:'Neon Pulse'});
+    await user.click(option);
     await user.click(screen.getByRole('button',{name:'Add clip effect'}));
     expect(store.project.clips.find(clip=>clip.id==='text-a')?.effects.at(-1)).toMatchObject({assetId:'catalog.effect.neon-pulse',version:'1.2.0'});
   });
@@ -118,6 +134,6 @@ describe('CreativeInspector',()=>{
     expect(creativeRegistry.resolve('effect',older.id,older.version)?.version).toBe('1.0.0');
     renderInspector('text-a','effects');
     await user.click(screen.getByLabelText('Clip effect preset'));
-    expect(screen.getAllByText('Neon Pulse')).toHaveLength(1);
+    expect(screen.getAllByRole('option',{name:'Neon Pulse'})).toHaveLength(1);
   });
 });

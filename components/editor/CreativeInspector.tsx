@@ -3,7 +3,7 @@ import {useEffect,useState,useSyncExternalStore} from 'react';
 import type {AnimationInstance,AnimationRole,AssetParamValue,CreativeKeyframe,EffectInstance,TransitionInstance} from '@/lib/lyricforge/creative-assets';
 import {animationRoleTime} from '@/lib/lyricforge/animation-runtime';
 import {audioEngine} from '@/lib/lyricforge/audio';
-import {creativeRegistry,type CreativeDefinition,type CreativeTarget,type ParamDefinition} from '@/lib/lyricforge/creative-registry';
+import {creativeRegistry,type CreativeDefinition,type CreativeTarget,type EffectCategory,type ParamDefinition} from '@/lib/lyricforge/creative-registry';
 import {clamp,type Clip,type Project,uid} from '@/lib/lyricforge/model';
 import {store,useEditor} from '@/lib/lyricforge/store';
 import {isValidTransitionPair,transitionWindow} from '@/lib/lyricforge/transition-runtime';
@@ -11,6 +11,18 @@ import {Choice,ColorField,NumberField,Range,Section,Toggle} from './Controls';
 
 export type CreativeInspectorMode='all'|'animations'|'effects'|'transition';
 type EffectScope='clip'|'master';
+type EffectFilter='all'|EffectCategory;
+const EFFECT_CATEGORIES:readonly {value:EffectFilter;label:string}[]=[
+  {value:'all',label:'All'},
+  {value:'adjust',label:'Adjust'},
+  {value:'transform',label:'Transform'},
+  {value:'blur-sharpen',label:'Blur & Sharpen'},
+  {value:'distort',label:'Distort'},
+  {value:'stylize',label:'Stylize'},
+  {value:'light',label:'Light'},
+  {value:'time',label:'Time'},
+  {value:'audio-reactive',label:'Audio-reactive'},
+];
 
 function title(value:string){return value[0].toUpperCase()+value.slice(1);}
 function paramName(key:string){return key.replace(/Ms$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase();}
@@ -118,6 +130,30 @@ function EffectRow({effect,scope,clip,project,index,total}:{effect:EffectInstanc
   </div>;
 }
 
+function EffectBrowser({definitions,category,query,onCategory,onQuery,onAdd}:{definitions:readonly CreativeDefinition[];category:EffectFilter;query:string;onCategory:(category:EffectFilter)=>void;onQuery:(query:string)=>void;onAdd:(definition:CreativeDefinition)=>void}){
+  const normalized=query.trim().toLowerCase();
+  const visible=definitions.filter(definition=>{
+    if(category!=='all'&&definition.category!==category)return false;
+    if(!normalized)return true;
+    return `${definition.name} ${definition.description??''}`.toLowerCase().includes(normalized);
+  });
+  return <div className="effect-browser">
+    <input className="effect-browser-search" aria-label="Search effects" placeholder="Search effects…" value={query} onChange={event=>onQuery(event.target.value)}/>
+    <div className="effect-browser-categories" role="group" aria-label="Effect categories">
+      {EFFECT_CATEGORIES.map(item=><button key={item.value} type="button" className={category===item.value?'active':''} aria-label={`Filter effects: ${item.label}`} aria-pressed={category===item.value} onClick={()=>onCategory(item.value)}>{item.label}</button>)}
+    </div>
+    <div className="effect-browser-grid">
+      {visible.map(definition=><button key={`${definition.id}@${definition.version}`} type="button" className="effect-browser-card" aria-label={`Add ${definition.name} effect`} onClick={()=>onAdd(definition)}>
+        <span className="effect-browser-card-title">{definition.name}</span>
+        <span className="effect-browser-card-category">{EFFECT_CATEGORIES.find(item=>item.value===definition.category)?.label??'Effect'}</span>
+        <span className="effect-browser-card-description">{definition.description??'Trusted LyricForge effect.'}</span>
+        <span className="effect-browser-card-add">+ Add</span>
+      </button>)}
+      {!visible.length&&<p className="hint effect-browser-empty">No effects match this search.</p>}
+    </div>
+  </div>;
+}
+
 function clipLabel(clip:Clip|undefined,id:string){return clip?.text?.trim()||clip?.name||clip?.id||id||'Missing clip';}
 
 function TransitionEditor({project,transitionId}:{project:Project;transitionId:string}){
@@ -165,6 +201,8 @@ export default function CreativeInspector({clipId,mode='all',transitionId=null}:
   const showEffects=mode==='all'||mode==='effects';
   const [scopeState,setScope]=useState<EffectScope>(()=>target?'clip':'master');
   const [presetState,setPreset]=useState('builtin.effect.glow');
+  const [effectQuery,setEffectQuery]=useState('');
+  const [effectCategory,setEffectCategory]=useState<EffectFilter>('all');
   useEffect(()=>{setScope(target?'clip':'master');},[clipId,target]);
   const scope:EffectScope=target?scopeState:'master';
   const effectTarget:CreativeTarget=scope==='clip'&&target?target:'master';
@@ -172,11 +210,11 @@ export default function CreativeInspector({clipId,mode='all',transitionId=null}:
   const preset=effectDefs.some(def=>def.id===presetState)?presetState:(effectDefs[0]?.id??'');
   const effects=scope==='clip'&&clip?clip.effects:project.masterEffects;
   const scopeLabel=scope==='clip'?'Clip effects':'Master effects';
-  const addEffect=()=>{
-    const definition=effectDefs.find(def=>def.id===preset);if(!definition)return;
+  const addDefinition=(definition:CreativeDefinition)=>{
     if(scope==='clip'&&clip)store.addClipEffect(clip.id,definition.id,definition.version);
     else store.addMasterEffect(definition.id,definition.version);
   };
+  const addEffect=()=>{const definition=effectDefs.find(def=>def.id===preset);if(definition)addDefinition(definition);};
 
   if(mode==='transition')return <div className="creative-inspector">{transitionId?<TransitionEditor project={project} transitionId={transitionId}/>:<p className="hint">Select a transition to edit.</p>}</div>;
 
@@ -185,8 +223,12 @@ export default function CreativeInspector({clipId,mode='all',transitionId=null}:
 
     {showEffects&&<Section title={scopeLabel} open>
       {target&&<Choice label="Effect scope" value={scope} options={[{label:'Clip',value:'clip'},{label:'Master',value:'master'}]} onChange={value=>setScope(value as EffectScope)}/>} 
-      <Choice label={scope==='clip'?'Clip effect preset':'Master effect preset'} value={preset} options={effectDefs.map(def=>({label:def.name,value:def.id}))} onChange={setPreset}/>
-      <button type="button" className="soft-button full creative-add-effect" aria-label={scope==='clip'?'Add clip effect':'Add master effect'} onClick={addEffect}>{scope==='clip'?'Add clip effect':'Add master effect'}</button>
+      <EffectBrowser definitions={effectDefs} category={effectCategory} query={effectQuery} onCategory={setEffectCategory} onQuery={setEffectQuery} onAdd={addDefinition}/>
+      <div className="effect-browser-quick-add">
+        <span className="hint">Quick add</span>
+        <Choice label={scope==='clip'?'Clip effect preset':'Master effect preset'} value={preset} options={effectDefs.map(def=>({label:def.name,value:def.id}))} onChange={setPreset}/>
+        <button type="button" className="soft-button full creative-add-effect" aria-label={scope==='clip'?'Add clip effect':'Add master effect'} onClick={addEffect}>{scope==='clip'?'Add clip effect':'Add master effect'}</button>
+      </div>
       {effects.map((effect,index)=><EffectRow key={effect.id} effect={effect} scope={scope} clip={scope==='clip'?clip:undefined} project={project} index={index} total={effects.length}/>)}
     </Section>}
   </div>;

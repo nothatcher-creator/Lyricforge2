@@ -1,6 +1,7 @@
 'use client';
 import {useSyncExternalStore} from 'react';
 import {demoProject, type Project, type Clip, retime, uid, makeClip, makeTrack, lyricClips, splitClip, mergeClips} from './model';
+import type {LyricAlignmentResult} from './lyric-alignment';
 import type {AnimationInstance,AnimationRole,EffectInstance,TransitionInstance} from './creative-assets';
 import {creativeRegistry,type CreativeTarget} from './creative-registry';
 import {isValidTransitionPair} from './transition-runtime';
@@ -45,6 +46,20 @@ export class EditorStore {
  split(t:number){const ids=new Set(this.selected);this.update(p=>({...p,clips:p.clips.flatMap(c=>ids.has(c.id)&&this.editable(c)&&t>c.start&&t<c.end?splitClip(c,t):[c])}));}
  merge(){const cs=this.project.clips.filter(c=>this.selected.includes(c.id)&&this.editable(c));if(cs.length<2||!cs.every(c=>c.trackId===cs[0].trackId&&(c.kind==='lyrics'||c.kind==='text')))return;const merged=mergeClips(cs)!;this.update(p=>({...p,clips:[...p.clips.filter(c=>!cs.some(s=>s.id===c.id)),merged]}));this.select([merged.id]);}
  offset(delta:number,all=false){if(!Number.isFinite(delta)||delta===0)return;const cs=(all?lyricClips(this.project):this.project.clips.filter(c=>this.selected.includes(c.id))).filter(c=>this.editable(c));if(!cs.length)return;const ids=new Set(cs.map(c=>c.id));const safe=Math.max(delta,-Math.min(...cs.map(c=>c.start)));if(!safe)return;this.update(p=>({...p,clips:p.clips.map(c=>ids.has(c.id)?retime(c,c.start+safe,c.end+safe):c),duration:Math.max(p.duration,...cs.map(c=>c.end+safe))}));}
+ applyLyricAlignment(result:LyricAlignmentResult){
+  const byId=new Map(result.lines.filter(line=>!line.protected).map(line=>[line.clipId,line]));
+  if(!byId.size)return;
+  this.update(p=>{
+   let changed=false;
+   const clips=p.clips.map(c=>{
+    const aligned=byId.get(c.id);
+    if(!aligned||c.kind!=='lyrics'||!this.editable(c))return c;
+    changed=true;
+    return {...c,start:aligned.start,end:aligned.end,words:aligned.words.map(word=>({...word})),timingSource:'aligned' as const,alignmentConfidence:aligned.confidence,alignmentQuality:aligned.quality};
+   });
+   return changed?{...p,clips,duration:Math.max(p.duration,...clips.map(c=>c.end))}:p;
+  },'lyric-alignment');
+ }
  add(kind:Clip['kind'],time:number,text=''){let track=this.project.tracks.find(t=>t.kind===kind&&!t.locked);if(kind!=='lyrics'&&kind!=='audio')track=undefined;const tr=track||makeTrack(kind,kind==='text'?'Text layer':kind==='visualizer'?'Visualizer':kind);const c=makeClip(kind,tr.id,time,Math.min(Math.max(time+4000,this.project.duration),time+(kind==='text'||kind==='lyrics'?4000:this.project.duration)),text);if(kind==='text')c.style={size:48,y:.25,karaoke:'Off'};if(kind==='visualizer'){c.visualizer='Bars';c.style={y:.8,scale:.7};}this.update(p=>({...p,duration:Math.max(p.duration,c.end),tracks:track?p.tracks:[tr,...p.tracks],clips:[...p.clips,c]}));this.select([c.id]);return c;}
 
  setAnimation(clipId:string,role:AnimationRole,instance:AnimationInstance|null){
