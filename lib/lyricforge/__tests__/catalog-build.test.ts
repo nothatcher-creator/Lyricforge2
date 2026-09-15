@@ -2,7 +2,7 @@ import {readdirSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe,expect,it} from 'vitest';
 import {strFromU8,unzipSync} from 'fflate';
-import {buildAssetPackage,stableJson,sortCatalogItems,assertTrustedCatalogSource} from '../../../scripts/catalog-lib.mjs';
+import {buildAssetPackage,stableJson,sortCatalogItems,assertTrustedCatalogSource,remoteManifestFromSource} from '../../../scripts/catalog-lib.mjs';
 
 const encoder=new TextEncoder();
 
@@ -31,6 +31,18 @@ function creativeSource(){
   runtimeId:'effect.glow',
   preset:{intensity:.85,radius:34,color:'#66ddff'},
   preview:{kind:'image',file:'preview.svg'},
+ } as const;
+}
+
+function attributedExternalSource(){
+ return {
+  ...creativeSource(),
+  id:'catalog.effect.commons-glow',
+  author:'Example Artist',
+  sourceUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',
+  source:{provider:'Wikimedia Commons',itemUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',creator:'Example Artist',attribution:'Example by Example Artist, CC BY 4.0',discoveredVia:'Openverse'},
+  license:'CC-BY-4.0',
+  licenseUrl:'https://creativecommons.org/licenses/by/4.0/',
  } as const;
 }
 
@@ -84,9 +96,28 @@ describe('official catalog builder',()=>{
   expect(()=>assertTrustedCatalogSource(creativeSource())).not.toThrow();
  });
 
+ it('requires structured source metadata for externally authored official items',()=>{
+  const external={...attributedExternalSource(),source:undefined};
+  expect(()=>assertTrustedCatalogSource(external)).toThrow(/source metadata/i);
+  expect(()=>assertTrustedCatalogSource(attributedExternalSource())).not.toThrow();
+ });
+
+ it('requires creator and attribution for attribution-bearing Creative Commons items',()=>{
+  const external=attributedExternalSource();
+  expect(()=>assertTrustedCatalogSource({...external,source:{...external.source,creator:undefined}})).toThrow(/creator/i);
+  expect(()=>assertTrustedCatalogSource({...external,source:{...external.source,attribution:undefined}})).toThrow(/attribution/i);
+ });
+
+ it('copies structured source metadata into generated remote manifests',()=>{
+  const source=attributedExternalSource();
+  const built=buildAssetPackage(source,{'preset.json':{mime:'application/json',bytes:encoder.encode(stableJson(source.preset))}});
+  const remote=remoteManifestFromSource(source,built,'assets/effect/commons-glow/1.0.0') as {source?:unknown};
+  expect(remote.source).toEqual(source.source);
+ });
+
  it('supports a redistributable font payload with its license in the same package',()=>{
   const source={
-   schemaVersion:1,id:'catalog.font.bebas-neue',version:'1.0.0',type:'font' as const,name:'Bebas Neue',description:'Condensed display font.',author:'Ryoichi Tsunekawa / Dharma Type',sourceUrl:'https://github.com/google/fonts/tree/main/ofl/bebasneue',license:'OFL-1.1',licenseUrl:'https://openfontlicense.org/open-font-license-official-text/',tags:['display','condensed'],minAppVersion:'0.1.0',font:{family:'Bebas Neue',style:'normal' as const,weight:400},preview:{kind:'image' as const,file:'preview.svg'},
+   schemaVersion:1,id:'catalog.font.bebas-neue',version:'1.0.0',type:'font' as const,name:'Bebas Neue',description:'Condensed display font.',author:'Ryoichi Tsunekawa / Dharma Type',sourceUrl:'https://github.com/google/fonts/tree/main/ofl/bebasneue',source:{provider:'Google Fonts',itemUrl:'https://fonts.google.com/specimen/Bebas+Neue',creator:'Ryoichi Tsunekawa / Dharma Type'},license:'OFL-1.1',licenseUrl:'https://openfontlicense.org/open-font-license-official-text/',tags:['display','condensed'],minAppVersion:'0.1.0',font:{family:'Bebas Neue',style:'normal' as const,weight:400},preview:{kind:'image' as const,file:'preview.svg'},
   };
   assertTrustedCatalogSource(source);
   const built=buildAssetPackage(source,{
