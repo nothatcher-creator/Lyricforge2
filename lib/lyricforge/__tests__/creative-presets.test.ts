@@ -3,7 +3,7 @@ import {BUILTIN_CREATIVE_DEFINITIONS} from '../creative-presets';
 import type {CreativeDefinition} from '../creative-registry';
 
 const expectedAnimations=['fade','slide','blur','scale-punch','tracking','word-pop','character-cascade','spin','tilt-3d','wipe-reveal','pixel-dissolve','glitch-reveal','pulse','float','bounce','shake','wave','neon-flicker','breathing-glow','rgb-drift','sway-3d','beat-pulse'].map(x=>'builtin.animation.'+x).sort();
-const expectedEffects=['glow','bloom','drop-shadow','outline','blur','sharpen','grain','vignette','brightness','contrast','saturation','hue-shift','duotone','posterize','pixelate','rgb-split','vhs','noise-displacement','shake','zoom-pulse','light-streak','glitch','beat-reactive','color-adjust','transform-crop','directional-blur','lens-distortion','chromatic-aberration','strobe','light-leak','zoom-blur','unsharp-mask','film-burn'].map(x=>'builtin.effect.'+x).sort();
+const expectedEffects=['glow','bloom','drop-shadow','outline','blur','sharpen','grain','vignette','brightness','contrast','saturation','hue-shift','duotone','posterize','pixelate','rgb-split','vhs','noise-displacement','shake','zoom-pulse','light-streak','glitch','beat-reactive','color-adjust','transform-crop','directional-blur','lens-distortion','chromatic-aberration','strobe','light-leak','zoom-blur','unsharp-mask','film-burn','posterize-time','echo'].map(x=>'builtin.effect.'+x).sort();
 const expectedTransitions=['crossfade','dip-black','dip-white','blur-dissolve','push','slide','wipe','zoom','spin','flash','glitch','rgb-split','pixel-dissolve','film-burn','light-leak','mask-reveal'].map(x=>'builtin.transition.'+x).sort();
 const effectCategories=new Set(['adjust','transform','blur-sharpen','distort','stylize','light','time','audio-reactive']);
 
