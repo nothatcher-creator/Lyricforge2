@@ -46,7 +46,7 @@ export class Renderer {
      }
      target.ctx.drawImage(current,0,0,p.width,p.height);current=target.canvas;continue;
     }
-    const target=this.surfaces.acquire(p.width,p.height,1,`${key}:fx:${i}:${effect.instanceId}:${Math.round(time*1000)}`);renderEffect(target.ctx,current,effect,{width:p.width,height:p.height,frameIndex,timeMs:time,pool:this.surfaces});current=target.canvas;
+    const target=this.surfaces.acquire(p.width,p.height,1,`${key}:fx:${i}:${effect.instanceId}:${Math.round(time*1000)}`);renderEffect(target.ctx,current,effect,{width:p.width,height:p.height,frameIndex,timeMs:time,quality,pool:this.surfaces});current=target.canvas;
    }catch(error){this.runtimeFailure(effect.instanceId,effect.assetId,error);}
   }
   return current;
