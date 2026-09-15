@@ -31,6 +31,14 @@ const fontDescriptor=z.object({
  weight:z.number().int().min(100).max(900),
 }).strict();
 
+const sourceDescriptor=z.object({
+ provider:z.string().trim().min(1).max(160),
+ itemUrl:httpsUrl,
+ creator:z.string().trim().min(1).max(300).optional(),
+ attribution:z.string().trim().min(1).max(2000).optional(),
+ discoveredVia:z.string().trim().min(1).max(160).optional(),
+}).strict();
+
 const catalogAssetManifestSchema=z.object({
  schemaVersion:z.literal(1),
  id:z.string().min(1).max(160).regex(/^[a-z0-9][a-z0-9._-]*$/,'Invalid catalog asset id'),
@@ -40,6 +48,7 @@ const catalogAssetManifestSchema=z.object({
  description:z.string().min(1).max(4000),
  author:z.string().min(1).max(200),
  sourceUrl:httpsUrl,
+ source:sourceDescriptor.optional(),
  license:z.string().min(1).max(160),
  licenseUrl:httpsUrl.optional(),
  tags:z.array(z.string().min(1).max(80)).max(50),
