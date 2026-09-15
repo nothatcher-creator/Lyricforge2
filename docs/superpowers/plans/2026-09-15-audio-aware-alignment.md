@@ -19,6 +19,8 @@
 - Protected/manual lines remain fixed.
 - Apply remains a single undoable store transaction.
 - Failure in waveform analysis falls back to transcript-only alignment.
+- Initial deterministic tuning constants live in one exported config object and are regression-tested: 20 ms frames, 3-frame RMS smoothing, 20th-percentile noise floor, 60 ms minimum boundary spacing, 180 ms weak-edge snap radius.
+- Focused local re-listen merges overlapping windows, pads each side by 1500 ms, runs at most 8 windows, and analyzes at most 45 seconds total per alignment action.
 
 ---
 
@@ -29,13 +31,14 @@
 - Test: `lib/lyricforge/__tests__/audio-alignment.test.ts`
 
 **Interfaces:**
+- Produces: `ALIGNMENT_AUDIO_CONFIG` containing the constants above.
 - Produces: `analyzeAlignmentAudio(samples: Float32Array, sampleRate?: number): AudioAlignmentFeatures`
 - Produces: `findSupportedBoundary(features: AudioAlignmentFeatures, targetMs:number, radiusMs:number): {time:number;strength:number}|null`
 - Produces: `AudioAlignmentFeatures { frameMs:number; rms:Float32Array; activity:Float32Array; onset:Float32Array; boundaries:number[] }`
 
 - [ ] **Step 1: Write failing synthetic-waveform tests**
 
-Create pulses and quiet gaps without external audio files. Assert that strong pulses produce nearby boundaries, silence does not, and results are deterministic.
+Create pulses and quiet gaps without external audio files. Assert that strong pulses produce nearby boundaries, silence does not, results are deterministic, and boundary spacing is at least 60 ms.
 
 ```ts
 it('finds audible boundaries but ignores quiet gaps',()=>{
@@ -44,6 +47,7 @@ it('finds audible boundaries but ignores quiet gaps',()=>{
  for(let i=.45*sr;i<.55*sr;i++)samples[i]=Math.sin(i*.18)*.8;
  for(let i=1.2*sr;i<1.3*sr;i++)samples[i]=Math.sin(i*.25)*.65;
  const features=analyzeAlignmentAudio(samples,sr);
+ expect(features.frameMs).toBe(20);
  expect(features.boundaries.some(ms=>Math.abs(ms-450)<120)).toBe(true);
  expect(features.boundaries.some(ms=>ms>700&&ms<1050)).toBe(false);
 });
@@ -56,7 +60,7 @@ Expected: FAIL because `audio-alignment.ts` does not exist.
 
 - [ ] **Step 3: Implement feature extraction**
 
-Use 20 ms frames, smoothed RMS, lower-percentile adaptive noise floor, normalized activity, positive energy-change onset score, and minimum boundary spacing. Clamp all returned times to sample duration.
+Use 20 ms RMS frames, a 3-frame centered smoothing window, the 20th percentile of smoothed RMS as adaptive floor, normalized activity above that floor, an onset score combining positive smoothed-energy delta with a short first-difference/high-frequency emphasis term, and non-maximum suppression with 60 ms minimum spacing. Clamp all returned times to sample duration.
 
 - [ ] **Step 4: Run focused tests and confirm GREEN**
 
@@ -99,7 +103,7 @@ Create a transcript with first/last anchors and synthetic audio boundaries betwe
 
 - [ ] **Step 2: Add RED tests for invariants**
 
-Assert strong text anchors do not move, protected lines do not move, timings remain monotonic, and selection/protected bounds cannot be crossed.
+Assert strong text anchors do not move, protected lines do not move, timings remain monotonic, selection/protected bounds cannot be crossed, and a weak line edge can move no more than `ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs` (180 ms).
 
 - [ ] **Step 3: Run alignment tests and confirm RED**
 
@@ -108,11 +112,11 @@ Expected: new refinement assertions FAIL.
 
 - [ ] **Step 4: Implement audio refinement**
 
-Expose enough anchor evidence from the existing dynamic-programming match to distinguish anchored vs interpolated tokens. For unmatched regions, rank candidate audio boundaries by activity/onset strength, allocate them monotonically between neighboring text anchors, and use proportional interpolation only when evidence is insufficient. Snap weak line edges within a bounded radius only; never move strong recognized anchors.
+Expose enough anchor evidence from the existing dynamic-programming match to distinguish anchored vs interpolated tokens. For unmatched regions, rank candidate audio boundaries by combined onset/activity strength, allocate them monotonically between neighboring text anchors, and use proportional interpolation only when evidence is insufficient. Snap only weak/interpolated line edges, never recognized anchors, and cap edge movement at 180 ms.
 
 - [ ] **Step 5: Blend confidence**
 
-Compute confidence using 65% text evidence, 25% audio evidence, 10% continuity/bounds. Preserve the existing `good`/`check`/`uncertain` thresholds unless tests prove they need a compatibility adjustment.
+Put the weights in named constants: text `0.65`, audio `0.25`, continuity/bounds `0.10`. Preserve the existing `good`/`check`/`uncertain` thresholds unless a compatibility regression demonstrates an existing threshold cannot be retained.
 
 - [ ] **Step 6: Run focused tests and confirm GREEN**
 
@@ -152,7 +156,7 @@ After `mono16k()`, call `analyzeAlignmentAudio(samples,16000)` inside a try/catc
 
 - [ ] **Step 4: Add local focused re-listen for uncertain windows**
 
-For LocalWhisper only, derive compact sample windows around `check`/`uncertain` lines, pad by a small deterministic margin, transcribe those slices, offset returned word timestamps back to song time, merge/dedupe them with first-pass words, and rerun alignment once. Cap the number/total duration of windows so a song is not fully transcribed twice.
+For LocalWhisper only, derive windows around `check`/`uncertain` line spans, pad each side by 1500 ms, merge overlapping/touching windows, keep the first 8 in timeline order, and trim/skip later windows once cumulative analyzed duration would exceed 45,000 ms. Transcribe those sample slices, offset returned word timestamps back to song time, merge/dedupe them with first-pass words, and rerun alignment once.
 
 - [ ] **Step 5: Preserve HTTP behavior**
 
