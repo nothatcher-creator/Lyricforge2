@@ -26,6 +26,14 @@ export interface CatalogFontDescriptor{
  weight:number;
 }
 
+export interface CatalogSourceDescriptor{
+ provider:string;
+ itemUrl:string;
+ creator?:string;
+ attribution?:string;
+ discoveredVia?:string;
+}
+
 export interface CatalogAssetManifest{
  schemaVersion:1;
  id:string;
@@ -35,6 +43,7 @@ export interface CatalogAssetManifest{
  description:string;
  author:string;
  sourceUrl:string;
+ source?:CatalogSourceDescriptor;
  license:string;
  licenseUrl?:string;
  tags:string[];
