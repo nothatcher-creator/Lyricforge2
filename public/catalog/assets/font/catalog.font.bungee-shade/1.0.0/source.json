@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.bungee-shade",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Bungee Shade",
+  "description": "Layered urban display face for poster-like hooks, street graphics, and oversized lyric titles.",
+  "author": "David Jonathan Ross",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bungeeshade",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bungeeshade", "creator": "David Jonathan Ross"},
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["urban", "display", "layered"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Bungee Shade", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "BungeeShade-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bungeeshade/BungeeShade-Regular.ttf", "gitBlobSha1": "80ada80a0404713e7cd31a6b7982ff7a549acdfe"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bungeeshade/OFL.txt", "gitBlobSha1": "6f47072f01b8698301896b247b7087c023a4da2d"}
+  ]
+}

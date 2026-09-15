@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.monoton",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Monoton",
+  "description": "Retro neon display lettering for synthwave titles, glowing choruses, and marquee-style lyrics.",
+  "author": "Vernon Adams",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/monoton",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/monoton", "creator": "Vernon Adams"},
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["retro", "neon", "display"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Monoton", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "Monoton-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/monoton/Monoton-Regular.ttf", "gitBlobSha1": "944605ab00a53341dc7d38d3c63ddfad418c0058"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/monoton/OFL.txt", "gitBlobSha1": "56f28066a07ca3bdf31c6b907a5bf086b535eb03"}
+  ]
+}
