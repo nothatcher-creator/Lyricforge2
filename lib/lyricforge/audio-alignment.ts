@@ -17,6 +17,7 @@ export interface AudioAlignmentFeatures{
  activity:Float32Array;
  onset:Float32Array;
  boundaries:number[];
+ offsetMs?:number;
 }
 
 export interface AlignmentWindow{start:number;end:number}
@@ -92,7 +93,18 @@ export function analyzeAlignmentAudio(samples:Float32Array,sampleRate=16000):Aud
   if(chosen.every(existing=>Math.abs(existing.time-candidate.time)>=ALIGNMENT_AUDIO_CONFIG.minBoundarySpacingMs))chosen.push(candidate);
  }
  chosen.sort((a,b)=>a.time-b.time);
- return {frameMs,rms,activity,onset,boundaries:chosen.map(item=>item.time)};
+ return {frameMs,rms,activity,onset,boundaries:chosen.map(item=>item.time),offsetMs:0};
+}
+
+export function shiftAudioAlignmentFeatures(features:AudioAlignmentFeatures,offsetMs:number):AudioAlignmentFeatures{
+ const offset=Math.round(offsetMs);
+ return {...features,offsetMs:(features.offsetMs??0)+offset,boundaries:features.boundaries.map(time=>time+offset)};
+}
+
+export function alignmentFeatureStrength(features:AudioAlignmentFeatures,time:number){
+ const localTime=time-(features.offsetMs??0);
+ const index=Math.min(features.onset.length-1,Math.max(0,Math.round(localTime/features.frameMs)));
+ return (features.onset[index]??0)*.72+(features.activity[index]??0)*.28;
 }
 
 export function findSupportedBoundary(features:AudioAlignmentFeatures,targetMs:number,radiusMs:number){
@@ -101,8 +113,7 @@ export function findSupportedBoundary(features:AudioAlignmentFeatures,targetMs:n
  for(const time of features.boundaries){
   const distance=Math.abs(time-targetMs);
   if(distance>radius)continue;
-  const index=Math.min(features.onset.length-1,Math.max(0,Math.round(time/features.frameMs)));
-  const strength=(features.onset[index]??0)*.72+(features.activity[index]??0)*.28;
+  const strength=alignmentFeatureStrength(features,time);
   if(!best||strength>best.strength||strength===best.strength&&distance<Math.abs(best.time-targetMs))best={time,strength};
  }
  return best;
