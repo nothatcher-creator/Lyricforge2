@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.creepster",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Creepster",
+  "description": "Horror display lettering for eerie hooks, Halloween edits, and distorted lyric cards.",
+  "author": "Sideshow",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/creepster",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/creepster", "creator": "Sideshow"},
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["horror", "display", "grunge"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Creepster", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "Creepster-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/creepster/Creepster-Regular.ttf", "gitBlobSha1": "668c59cf43b545294b1fd778ee0cd0f4e18cd02c"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/creepster/OFL.txt", "gitBlobSha1": "92bc9bee87bafcb1a3ccc6854ba98683411ae7e0"}
+  ]
+}

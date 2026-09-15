@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.press-start-2p",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Press Start 2P",
+  "description": "Pixel-era game lettering for chiptune, arcade, and intentionally lo-fi lyric videos.",
+  "author": "CodeMan38",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pressstart2p",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pressstart2p", "creator": "CodeMan38"},
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["pixel", "arcade", "retro"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Press Start 2P", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "PressStart2P-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pressstart2p/PressStart2P-Regular.ttf", "gitBlobSha1": "39adf42efa597906e53be689474ac82214112124"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pressstart2p/OFL.txt", "gitBlobSha1": "22796dfe6e3784d69d255b0bf253e2b16f3281de"}
+  ]
+}

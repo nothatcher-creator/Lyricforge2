@@ -13,6 +13,7 @@ export const REDISTRIBUTABLE_FONT_LICENSES=new Set(['OFL-1.1','Apache-2.0']);
 const FIXED_ZIP_TIME=new Date('1980-01-01T00:00:00.000Z');
 const SEMVER=/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const ASSET_TYPES=new Set(['font','effect','transition','text-animation']);
+const LYRICFORGE_SOURCE_PREFIX='https://github.com/nothatcher-creator/Lyricforge2';
 
 function sortValue(value){
  if(Array.isArray(value))return value.map(sortValue);
@@ -36,6 +37,18 @@ function safeRelativeFile(value,label='catalog path'){
  if(parts.some(part=>!part||part==='.'||part==='..'))throw new Error(`Path traversal is not allowed in ${label}: ${value}`);
  return value;
 }
+function isHttps(value){
+ try{return typeof value==='string'&&new URL(value).protocol==='https:';}catch{return false;}
+}
+function isExternalSource(source){return source.author!=='LyricForge'||!source.sourceUrl.startsWith(LYRICFORGE_SOURCE_PREFIX);}
+function assertSourceDescriptor(source){
+ if(!source||typeof source!=='object')throw new Error('External catalog items require source metadata');
+ if(typeof source.provider!=='string'||!source.provider.trim())throw new Error('Catalog source provider is required');
+ if(!isHttps(source.itemUrl))throw new Error('Catalog source itemUrl must use HTTPS');
+ if(source.creator!==undefined&&(typeof source.creator!=='string'||!source.creator.trim()))throw new Error('Catalog source creator must not be blank');
+ if(source.attribution!==undefined&&(typeof source.attribution!=='string'||!source.attribution.trim()))throw new Error('Catalog source attribution must not be blank');
+ if(source.discoveredVia!==undefined&&(typeof source.discoveredVia!=='string'||!source.discoveredVia.trim()))throw new Error('Catalog source discoveredVia must not be blank');
+}
 function assertIdentity(source){
  if(!source||typeof source!=='object')throw new Error('Catalog source must be an object');
  if(source.schemaVersion!==1)throw new Error('Catalog source schemaVersion must be 1');
@@ -52,6 +65,13 @@ function assertIdentity(source){
  if(source.maxAppVersion!==undefined&&(!SEMVER.test(source.maxAppVersion)||compareSemVer(source.maxAppVersion,source.minAppVersion)<0))throw new Error('Catalog maxAppVersion is invalid');
  if(!source.preview||!['image','video'].includes(source.preview.kind))throw new Error('Catalog preview metadata is required');
  if(source.preview.file!==undefined)safeRelativeFile(source.preview.file,'preview path');
+ if(source.source!==undefined)assertSourceDescriptor(source.source);
+ if(isExternalSource(source)&&!source.source)throw new Error('External catalog items require source metadata');
+ if(/^CC-BY(?:-SA)?-/i.test(source.license)){
+  assertSourceDescriptor(source.source);
+  if(typeof source.source.creator!=='string'||!source.source.creator.trim())throw new Error('Attribution-bearing catalog items require a source creator');
+  if(typeof source.source.attribution!=='string'||!source.source.attribution.trim())throw new Error('Attribution-bearing catalog items require source attribution');
+ }
 }
 function assertTrustedRuntimeAndLicense(source){
  if(source.type==='font'){
@@ -98,7 +118,7 @@ export function remoteManifestFromSource(source,built,relativeDir){
  const packageUrl=`${relativeDir}/asset.lyricforge-asset`;
  const previewUrl=`${relativeDir}/${previewFile}`;
  return {
-  schemaVersion:1,id:source.id,version:source.version,type:source.type,name:source.name,description:source.description,author:source.author,sourceUrl:source.sourceUrl,license:source.license,...(source.licenseUrl?{licenseUrl:source.licenseUrl}:{}),tags:[...source.tags],minAppVersion:source.minAppVersion,...(source.maxAppVersion?{maxAppVersion:source.maxAppVersion}:{}),...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),preview:{kind:source.preview.kind,url:previewUrl},package:{url:packageUrl,size:built.bytes.byteLength,sha256:built.sha256},...(source.font?{font:source.font}:{}),...(source.changelog?{changelog:source.changelog}:{}),
+  schemaVersion:1,id:source.id,version:source.version,type:source.type,name:source.name,description:source.description,author:source.author,sourceUrl:source.sourceUrl,...(source.source?{source:{...source.source}}:{}),license:source.license,...(source.licenseUrl?{licenseUrl:source.licenseUrl}:{}),tags:[...source.tags],minAppVersion:source.minAppVersion,...(source.maxAppVersion?{maxAppVersion:source.maxAppVersion}:{}),...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),preview:{kind:source.preview.kind,url:previewUrl},package:{url:packageUrl,size:built.bytes.byteLength,sha256:built.sha256},...(source.font?{font:source.font}:{}),...(source.changelog?{changelog:source.changelog}:{}),
  };
 }
 

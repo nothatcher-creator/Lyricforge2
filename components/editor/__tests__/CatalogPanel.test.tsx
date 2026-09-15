@@ -17,20 +17,31 @@ function effect(version:string):CatalogAssetManifest{
  };
 }
 
+function commonsEffect():CatalogAssetManifest{
+ return {
+  schemaVersion:1,id:'catalog.effect.commons-glow',version:'1.0.0',type:'effect',name:'Commons Glow',description:'Soft sourced glow',author:'Example Artist',
+  sourceUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',source:{provider:'Wikimedia Commons',itemUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',creator:'Example Artist',attribution:'Example Artist, CC BY 4.0',discoveredVia:'Openverse'},
+  license:'CC-BY-4.0',licenseUrl:'https://creativecommons.org/licenses/by/4.0/',tags:['soft','glow'],minAppVersion:'0.1.0',runtimeId:'effect.glow',
+  preset:{radius:24,intensity:.55},preview:{kind:'image',url:'assets/effect/catalog.effect.commons-glow/1.0.0/preview.svg'},
+  package:{url:'assets/effect/catalog.effect.commons-glow/1.0.0/asset.lyricforge-asset',size:128,sha256:'b'.repeat(64)},
+ };
+}
+
 function installed(manifest:CatalogAssetManifest):InstalledAssetVersion{
  return {id:manifest.id,type:manifest.type,version:manifest.version,catalogId:'official',manifest,installedAt:1,packageCacheKey:`package:${manifest.type}:${manifest.id}@${manifest.version}`};
 }
 
-async function fixture(withInstalled=true){
+async function fixture(withInstalled=true,withMultipleProviders=false){
  const storage=createMemoryCatalogStorage();
  const old=effect('1.0.0');
  const latest=effect('1.1.0');
  if(withInstalled){await storage.putVersion(installed(old));await storage.setCurrentVersion('effect',old.id,old.version);}
- const index:CatalogIndex={schemaVersion:1,catalogId:'official',generatedAt:'2026-09-13T17:00:00.000Z',items:[latest]};
+ const items=withMultipleProviders?[latest,commonsEffect()]:[latest];
+ const index:CatalogIndex={schemaVersion:1,catalogId:'official',generatedAt:'2026-09-13T17:00:00.000Z',items};
  const service=new CatalogService({storage,appVersion:'0.1.0',fetchIndex:async()=>index,builtins:[]});
  await service.load();
  const installer={
-  install:vi.fn(async()=>installed(latest)),
+  install:vi.fn(async(manifest:CatalogAssetManifest)=>installed(manifest)),
   repair:vi.fn(async()=>installed(old)),
   rollback:vi.fn(async()=>installed(old)),
   remove:vi.fn(async()=>{}),
@@ -53,6 +64,29 @@ describe('CatalogPanel',()=>{
   expect(update).toBeTruthy();
   await user.click(update);
   expect(installer.install).toHaveBeenCalledWith(latest);
+ });
+
+ it('shows source provider chips and filters a multi-provider category',async()=>{
+  const user=userEvent.setup();
+  const {service,installer}=await fixture(false,true);
+  render(<CatalogPanel service={service} installer={installer} mobile={false}/>);
+  await user.click(screen.getByRole('tab',{name:'Effects'}));
+  await user.click(screen.getByRole('button',{name:'Online'}));
+  expect(screen.getByLabelText('Source provider Wikimedia Commons')).toBeTruthy();
+  const provider=screen.getByLabelText('Provider filter');
+  await user.selectOptions(provider,'Wikimedia Commons');
+  expect(screen.getByText('Commons Glow')).toBeTruthy();
+  expect(screen.queryByText('Neon Pulse')).toBeNull();
+  await user.selectOptions(provider,'LyricForge');
+  expect(screen.getByText('Neon Pulse')).toBeTruthy();
+  expect(screen.queryByText('Commons Glow')).toBeNull();
+ });
+
+ it('does not show a provider selector when the current category has only one source',async()=>{
+  const {service,installer}=await fixture(false,false);
+  render(<CatalogPanel service={service} installer={installer} mobile={false}/>);
+  expect(screen.queryByLabelText('Provider filter')).toBeNull();
+  expect(screen.getByLabelText('Source provider LyricForge')).toBeTruthy();
  });
 
  it('uses full-height dialog semantics and touch-sized install controls on phone portrait',async()=>{

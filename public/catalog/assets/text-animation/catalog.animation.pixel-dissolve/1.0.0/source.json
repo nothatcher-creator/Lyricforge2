@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.animation.pixel-dissolve",
+  "version": "1.0.0",
+  "type": "text-animation",
+  "name": "Pixel Dissolve Text",
+  "description": "Pixelated reveal and disappearance for retro or digital lyric styling.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["pixel", "dissolve", "digital"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "animation.pixel-dissolve",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

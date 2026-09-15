@@ -32,10 +32,26 @@ describe('Align Existing Lyrics workflow',()=>{
     expect(alignmentDialog).toContain('applyLyricAlignment');
   });
 
-  it('shows Good Check and Uncertain review states before apply',()=>{
+  it('listens to the song by default before matching exact lyrics',()=>{
+    expect(alignmentDialog).toContain('Audio-aware refinement');
+    expect(alignmentDialog).toContain('Listening for vocal timing');
+    expect(alignmentDialog).toContain('analyzeAlignmentAudio');
+    expect(alignmentDialog).toContain('audioAware');
+  });
+
+  it('limits focused re-listening to the local recognition path',()=>{
+    expect(alignmentDialog).toContain('Re-listening to uncertain sections');
+    expect(alignmentDialog).toMatch(/provider\s*===\s*['"]local['"]/);
+    expect(alignmentDialog).toContain('buildFocusedRelistenWindows');
+  });
+
+  it('shows Good Check and Uncertain review states plus alignment reasons before apply',()=>{
     expect(alignmentDialog).toContain('Good');
     expect(alignmentDialog).toContain('Check');
     expect(alignmentDialog).toContain('Uncertain');
+    expect(alignmentDialog).toContain('audio-assisted');
+    expect(alignmentDialog).toContain('weak-recognition');
+    expect(alignmentDialog).toContain('protected-anchor');
     expect(alignmentDialog).toContain('Apply alignment');
   });
 

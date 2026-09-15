@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.black-ops-one",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Black Ops One",
+  "description": "Stencil-inspired display lettering for industrial, military, and heavy rock lyric treatments.",
+  "author": "James Grieshaber, Eben Sorkin",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/blackopsone",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/blackopsone", "creator": "James Grieshaber, Eben Sorkin"},
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["stencil", "display", "industrial"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Black Ops One", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "BlackOpsOne-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/blackopsone/BlackOpsOne-Regular.ttf", "gitBlobSha1": "672d8e285231ab0ff58fac66ec21ef3f5a005a48"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/blackopsone/OFL.txt", "gitBlobSha1": "525b8ec8568ac67c6f0f4076e6c791d4ff69c2d6"}
+  ]
+}

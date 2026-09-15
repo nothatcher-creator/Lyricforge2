@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.animation.breathing-glow",
+  "version": "1.0.0",
+  "type": "text-animation",
+  "name": "Breathing Glow",
+  "description": "Slow luminous breathing motion for ambient and emotional lyric moments.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["glow", "breathing", "ambient"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "animation.breathing-glow",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

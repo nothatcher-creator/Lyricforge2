@@ -1,3 +1,4 @@
+import {ALIGNMENT_AUDIO_CONFIG,alignmentFeatureStrength,findSupportedBoundary,type AudioAlignmentFeatures} from './audio-alignment';
 import {clamp,type AlignmentQuality,type Project,type Word} from './model';
 
 export interface AlignmentInputLine{
@@ -18,6 +19,8 @@ export interface LyricToken{
   emphasized?:boolean;
 }
 
+export type AlignmentReason='text-anchored'|'audio-assisted'|'weak-recognition'|'protected-anchor';
+
 export interface AlignedLyricLine{
   clipId:string;
   start:number;
@@ -26,6 +29,7 @@ export interface AlignedLyricLine{
   confidence:number;
   quality:AlignmentQuality;
   protected:boolean;
+  reason?:AlignmentReason;
 }
 
 export interface LyricAlignmentResult{
@@ -34,6 +38,13 @@ export interface LyricAlignmentResult{
   check:number;
   uncertain:number;
 }
+
+export interface LyricAlignmentOptions{
+  audioFeatures?:AudioAlignmentFeatures;
+  audioAware?:boolean;
+}
+
+export const ALIGNMENT_CONFIDENCE_WEIGHTS={text:.65,audio:.25,continuity:.10} as const;
 
 const CONTRACTIONS:Record<string,string[]>= {
   im:['i am'],ive:['i have'],ill:['i will'],id:['i would','i had'],
@@ -162,28 +173,125 @@ function interpolateWords(tokens:readonly LyricToken[],anchors:Map<number,Anchor
   return words;
 }
 
+function refineWithAudio(
+  tokens:readonly LyricToken[],
+  anchors:Map<number,Anchor>,
+  baseWords:readonly Word[],
+  bounds:{start:number;end:number},
+  features:AudioAlignmentFeatures,
+  lines:readonly AlignmentInputLine[],
+){
+  const words=baseWords.map(word=>({...word}));
+  const supported=new Set<number>();
+  const lineById=new Map(lines.map(line=>[line.id,line]));
+  let cursor=0;
+  while(cursor<tokens.length){
+    if(anchors.has(cursor)){cursor++;continue;}
+    const first=cursor;
+    while(cursor<tokens.length&&!anchors.has(cursor))cursor++;
+    const last=cursor-1,count=last-first+1;
+    const leftIndex=first-1,rightIndex=cursor;
+    const leftTime=leftIndex>=0?words[leftIndex].end:bounds.start;
+    const rightTime=rightIndex<tokens.length?words[rightIndex].start:bounds.end;
+    if(rightTime<=leftTime)continue;
+
+    const candidates=features.boundaries
+      .filter(time=>time>=leftTime&&time<rightTime)
+      .map(time=>({time,strength:alignmentFeatureStrength(features,time)}))
+      .filter(candidate=>candidate.strength>.05)
+      .sort((a,b)=>b.strength-a.strength||a.time-b.time)
+      .slice(0,count)
+      .sort((a,b)=>a.time-b.time);
+
+    const assigned=new Map<number,number>();
+    for(let j=0;j<candidates.length;j++){
+      let relative=Math.round((j+1)*(count+1)/(candidates.length+1)-1);
+      relative=Math.max(0,Math.min(count-1,relative));
+      while(assigned.has(relative)&&relative<count-1)relative++;
+      while(assigned.has(relative)&&relative>0)relative--;
+      const tokenIndex=first+relative;
+      let time=candidates[j].time;
+      const token=tokens[tokenIndex];
+      const sourceLine=lineById.get(token.lineId);
+      if(token.wordIndex===0&&sourceLine){
+        const edge=findSupportedBoundary(features,sourceLine.start,ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs);
+        if(!edge)continue;
+        time=edge.time;
+      }
+      assigned.set(relative,clamp(Math.round(time),Math.round(leftTime),Math.max(Math.round(leftTime),Math.round(rightTime)-1)));
+      supported.add(tokenIndex);
+    }
+
+    const points=[{position:-1,time:leftTime},...([...assigned.entries()].map(([relative,time])=>({position:relative,time})).sort((a,b)=>a.position-b.position)),{position:count,time:rightTime}];
+    const starts=new Array<number>(count);
+    for(let p=0;p<points.length-1;p++){
+      const a=points[p],b=points[p+1];
+      const span=b.position-a.position;
+      for(let position=a.position+1;position<b.position;position++){
+        const ratio=(position-a.position)/span;
+        starts[position]=Math.round(a.time+(b.time-a.time)*ratio);
+      }
+      if(b.position<count)starts[b.position]=Math.round(b.time);
+    }
+    for(let relative=0;relative<count;relative++){
+      const index=first+relative;
+      const start=Math.max(Math.round(leftTime),relative?starts[relative-1]+1:starts[relative]??Math.round(leftTime),starts[relative]??Math.round(leftTime));
+      const nextStart=relative+1<count?(starts[relative+1]??rightTime):rightTime;
+      const end=Math.max(start+1,Math.min(Math.round(rightTime),Math.round(nextStart)));
+      words[index]={...words[index],start,end};
+    }
+  }
+
+  for(const [index,anchor] of anchors){
+    words[index]={text:tokens[index].raw,start:Math.round(anchor.word.start),end:Math.max(Math.round(anchor.word.start)+1,Math.round(anchor.word.end)),...(tokens[index].emphasized?{emphasized:true}:{})};
+  }
+
+  for(let i=0;i<words.length;i++){
+    if(i>0&&!anchors.has(i))words[i].start=Math.max(words[i].start,words[i-1].end);
+    if(i+1<words.length&&!anchors.has(i))words[i].end=Math.max(words[i].start+1,Math.min(words[i].end,words[i+1].start));
+    words[i].start=clamp(words[i].start,bounds.start,Math.max(bounds.start,bounds.end-1));
+    words[i].end=clamp(Math.max(words[i].start+1,words[i].end),words[i].start+1,bounds.end);
+  }
+  return {words,supported};
+}
+
 function qualityFor(confidence:number):AlignmentQuality{return confidence>=.78?'good':confidence>=.48?'check':'uncertain';}
 
-function alignUnprotected(lines:readonly AlignmentInputLine[],recognized:readonly Word[],bounds:{start:number;end:number}):AlignedLyricLine[]{
+function alignUnprotected(lines:readonly AlignmentInputLine[],recognized:readonly Word[],bounds:{start:number;end:number},options:LyricAlignmentOptions):AlignedLyricLine[]{
   const tokens=tokenizeLyricLines(lines);
-  if(!tokens.length)return lines.map(line=>({clipId:line.id,start:line.start,end:line.end,words:[],confidence:0,quality:'uncertain',protected:false}));
+  if(!tokens.length)return lines.map(line=>({clipId:line.id,start:line.start,end:line.end,words:[],confidence:0,quality:'uncertain',protected:false,reason:'weak-recognition'}));
   const sorted=[...recognized].filter(word=>word.end>bounds.start&&word.start<bounds.end).sort((a,b)=>a.start-b.start||a.end-b.end);
   const anchors=findAnchors(tokens,sorted);
-  const timed=interpolateWords(tokens,anchors,bounds);
+  const base=interpolateWords(tokens,anchors,bounds);
+  const useAudio=options.audioAware!==false&&!!options.audioFeatures;
+  const refined=useAudio?refineWithAudio(tokens,anchors,base,bounds,options.audioFeatures!,lines):{words:base,supported:new Set<number>()};
+  const timed=refined.words;
   const indexByLine=new Map<string,number[]>();
   tokens.forEach((token,index)=>{const indices=indexByLine.get(token.lineId)??[];indices.push(index);indexByLine.set(token.lineId,indices);});
   return lines.map(line=>{
     const indices=indexByLine.get(line.id)??[];
     const words=indices.map(index=>timed[index]);
-    let score=0;
-    for(const index of indices){
-      const anchor=anchors.get(index);
-      score+=anchor?(anchor.similarity>=.98?1:.7):.35;
+    let confidence=0;
+    if(useAudio){
+      const textEvidence=indices.length?indices.reduce((score,index)=>score+(anchors.get(index)?.similarity??0),0)/indices.length:0;
+      const unanchored=indices.filter(index=>!anchors.has(index));
+      const audioEvidence=unanchored.length?unanchored.filter(index=>refined.supported.has(index)).length/unanchored.length:1;
+      const continuity=words.every((word,index)=>word.start>=bounds.start&&word.end<=bounds.end&&(index===0||word.start>=words[index-1].end))?1:0;
+      confidence=clamp(textEvidence*ALIGNMENT_CONFIDENCE_WEIGHTS.text+audioEvidence*ALIGNMENT_CONFIDENCE_WEIGHTS.audio+continuity*ALIGNMENT_CONFIDENCE_WEIGHTS.continuity,0,1);
+    }else{
+      let score=0;
+      for(const index of indices){
+        const anchor=anchors.get(index);
+        score+=anchor?(anchor.similarity>=.98?1:.7):.35;
+      }
+      confidence=indices.length?clamp(score/indices.length,0,1):0;
     }
-    const confidence=indices.length?clamp(score/indices.length,0,1):0;
     const start=words[0]?.start??clamp(line.start,bounds.start,bounds.end);
     const end=words.at(-1)?.end??Math.max(start+1,clamp(line.end,start+1,bounds.end));
-    return {clipId:line.id,start,end,words,confidence,quality:qualityFor(confidence),protected:false};
+    const hasAudioSupport=indices.some(index=>refined.supported.has(index));
+    const allAnchored=indices.length>0&&indices.every(index=>anchors.has(index));
+    const reason:AlignmentReason=hasAudioSupport?'audio-assisted':allAnchored?'text-anchored':'weak-recognition';
+    return {clipId:line.id,start,end,words,confidence,quality:qualityFor(confidence),protected:false,reason};
   });
 }
 
@@ -191,10 +299,10 @@ function protectedResult(line:AlignmentInputLine):AlignedLyricLine{
   const raw=line.text.trim().split(/\s+/).filter(Boolean);
   const duration=Math.max(raw.length,line.end-line.start);
   const words=line.words?.length?line.words.map(word=>({...word})):raw.map((text,index)=>({text,start:Math.round(line.start+duration*index/Math.max(1,raw.length)),end:Math.round(line.start+duration*(index+1)/Math.max(1,raw.length))}));
-  return {clipId:line.id,start:line.start,end:line.end,words,confidence:1,quality:'good',protected:true};
+  return {clipId:line.id,start:line.start,end:line.end,words,confidence:1,quality:'good',protected:true,reason:'protected-anchor'};
 }
 
-export function alignLyricsToTranscript(lines:readonly AlignmentInputLine[],recognized:readonly Word[],bounds:{start:number;end:number}):LyricAlignmentResult{
+export function alignLyricsToTranscript(lines:readonly AlignmentInputLine[],recognized:readonly Word[],bounds:{start:number;end:number},options:LyricAlignmentOptions={}):LyricAlignmentResult{
   const safeBounds={start:Math.max(0,Math.round(bounds.start)),end:Math.max(Math.round(bounds.start)+1,Math.round(bounds.end))};
   const results=new Map<string,AlignedLyricLine>();
   let cursor=0;
@@ -206,7 +314,7 @@ export function alignLyricsToTranscript(lines:readonly AlignmentInputLine[],reco
     const previousProtected=startIndex>0&&lines[startIndex-1].protected?lines[startIndex-1]:undefined;
     const nextProtected=cursor<lines.length&&lines[cursor].protected?lines[cursor]:undefined;
     const segmentBounds={start:previousProtected?.end??safeBounds.start,end:nextProtected?.start??safeBounds.end};
-    for(const line of alignUnprotected(segment,recognized,segmentBounds))results.set(line.clipId,line);
+    for(const line of alignUnprotected(segment,recognized,segmentBounds,options))results.set(line.clipId,line);
   }
   const ordered=lines.map(line=>results.get(line.id)??protectedResult(line));
   return {

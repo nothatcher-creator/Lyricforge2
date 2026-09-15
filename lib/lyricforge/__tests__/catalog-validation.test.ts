@@ -31,6 +31,27 @@ describe('catalog validation',()=>{
   expect(manifest.runtimeId).toBe('effect.glow');
  });
 
+ it('keeps legacy schema-v1 manifests valid without structured source metadata',()=>{
+  expect(validateCatalogAssetManifest(effectManifest()).source).toBeUndefined();
+ });
+
+ it('accepts structured provider, creator, attribution, and discovery metadata',()=>{
+  const manifest=validateCatalogAssetManifest({...effectManifest(),source:{
+   provider:'Wikimedia Commons',
+   itemUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',
+   creator:'Example Creator',
+   attribution:'Example Creator, CC BY 4.0',
+   discoveredVia:'Openverse',
+  }});
+  expect(manifest.source?.provider).toBe('Wikimedia Commons');
+  expect(manifest.source?.discoveredVia).toBe('Openverse');
+ });
+
+ it('rejects blank providers and non-HTTPS source item URLs',()=>{
+  expect(()=>validateCatalogAssetManifest({...effectManifest(),source:{provider:'',itemUrl:'https://example.com/item'}})).toThrow(/provider/i);
+  expect(()=>validateCatalogAssetManifest({...effectManifest(),source:{provider:'Example',itemUrl:'http://example.com/item'}})).toThrow(/https/i);
+ });
+
  it('rejects executable payload declarations in embedded packages',()=>{
   expect(()=>validateEmbeddedAssetManifest({
    schemaVersion:1,

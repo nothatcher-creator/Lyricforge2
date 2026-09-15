@@ -7,6 +7,7 @@
   "description": "A condensed display face suited to large lyric titles and bold hooks.",
   "author": "Ryoichi Tsunekawa / Dharma Type",
   "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bebasneue",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bebasneue", "creator": "Ryoichi Tsunekawa / Dharma Type"},
   "license": "OFL-1.1",
   "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
   "tags": ["display", "condensed", "titles"],

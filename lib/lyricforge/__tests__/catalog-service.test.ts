@@ -66,6 +66,23 @@ describe('CatalogService',()=>{
   expect(service.search('',{type:'effect',filter:'Favorites'}).map(item=>item.id)).toEqual([dream.id]);
  });
 
+ it('searches structured source metadata and filters by provider independently of names and tags',async()=>{
+  const storage=createMemoryCatalogStorage();
+  const original=manifest('catalog.effect.neon-pulse','1.0.0');
+  const external=manifest('catalog.effect.commons-glow','1.0.0',{
+   name:'Commons Glow',author:'Example Artist',tags:['soft'],
+   sourceUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',license:'CC-BY-4.0',licenseUrl:'https://creativecommons.org/licenses/by/4.0/',
+   source:{provider:'Wikimedia Commons',itemUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',creator:'Example Artist',attribution:'Example Artist, CC BY 4.0',discoveredVia:'Openverse'},
+  });
+  await cacheIndex(storage,index('2026-09-13T12:00:00.000Z',[original,external]));
+  const service=new CatalogService({storage,appVersion:'0.1.0',fetchIndex:async()=>{throw new Error('offline');},builtins:[]});
+  await service.load();
+  expect(service.search('wikimedia commons',{type:'effect',filter:'Online'}).map(item=>item.id)).toEqual([external.id]);
+  expect(service.search('example artist cc by',{type:'effect',filter:'Online'}).map(item=>item.id)).toEqual([external.id]);
+  expect(service.search('',{type:'effect',filter:'Online',provider:'Wikimedia Commons'}).map(item=>item.id)).toEqual([external.id]);
+  expect(service.search('',{type:'effect',filter:'Online',provider:'LyricForge'}).map(item=>item.id)).toEqual([original.id]);
+ });
+
  it('persists favorite changes and publishes them to subscribers',async()=>{
   const storage=createMemoryCatalogStorage();
   const neon=manifest('catalog.effect.neon-pulse','1.0.0');

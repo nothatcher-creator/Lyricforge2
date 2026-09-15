@@ -1,8 +1,8 @@
-import {readdirSync,statSync} from 'node:fs';
+import {readFileSync,readdirSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe,expect,it} from 'vitest';
 import {strFromU8,unzipSync} from 'fflate';
-import {buildAssetPackage,stableJson,sortCatalogItems,assertTrustedCatalogSource} from '../../../scripts/catalog-lib.mjs';
+import {buildAssetPackage,stableJson,sortCatalogItems,assertTrustedCatalogSource,remoteManifestFromSource} from '../../../scripts/catalog-lib.mjs';
 
 const encoder=new TextEncoder();
 
@@ -13,6 +13,16 @@ function countCatalogSources(root:string):number{
   if(stat.isDirectory())return count+countCatalogSources(path);
   return count+(name==='source.json'?1:0);
  },0);
+}
+
+function readCatalogSources(root:string):Record<string,any>[] {
+ return readdirSync(root).flatMap(name=>{
+  const path=join(root,name);
+  const stat=statSync(path);
+  if(stat.isDirectory())return readCatalogSources(path);
+  if(name!=='source.json')return [];
+  return [JSON.parse(readFileSync(path,'utf8')) as Record<string,any>];
+ });
 }
 
 function creativeSource(){
@@ -34,11 +44,52 @@ function creativeSource(){
  } as const;
 }
 
+function attributedExternalSource(){
+ return {
+  ...creativeSource(),
+  id:'catalog.effect.commons-glow',
+  author:'Example Artist',
+  sourceUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',
+  source:{provider:'Wikimedia Commons',itemUrl:'https://commons.wikimedia.org/wiki/File:Example.svg',creator:'Example Artist',attribution:'Example by Example Artist, CC BY 4.0',discoveredVia:'Openverse'},
+  license:'CC-BY-4.0',
+  licenseUrl:'https://creativecommons.org/licenses/by/4.0/',
+ } as const;
+}
+
 describe('official catalog builder',()=>{
- it('ships at least six official choices in every browse category',()=>{
+ it('ships at least twelve official choices in every existing browse category',()=>{
   for(const type of ['font','effect','transition','text-animation']){
-   expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(6);
+   expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(12);
   }
+ });
+
+ it('enforces catalog-wide identity, provenance, license, and provider quality',()=>{
+  const sources=readCatalogSources(join('public','catalog','assets'));
+  const identities=new Set<string>();
+  const providers=new Set<string>();
+  for(const source of sources){
+   const identity=`${source.type}:${source.id}@${source.version}`;
+   expect(identities.has(identity),`duplicate ${identity}`).toBe(false);
+   identities.add(identity);
+   expect(typeof source.license,`${identity} license`).toBe('string');
+   expect(source.license.trim().length,`${identity} license`).toBeGreaterThan(0);
+   const internal=source.author==='LyricForge'&&typeof source.sourceUrl==='string'&&source.sourceUrl.startsWith('https://github.com/nothatcher-creator/Lyricforge2');
+   if(internal){
+    providers.add('LyricForge');
+    continue;
+   }
+   expect(source.source,`${identity} source metadata`).toBeTruthy();
+   expect(typeof source.source?.provider,`${identity} provider`).toBe('string');
+   expect(source.source.provider.trim().length,`${identity} provider`).toBeGreaterThan(0);
+   expect(()=>new URL(source.source.itemUrl),`${identity} item URL`).not.toThrow();
+   expect(new URL(source.source.itemUrl).protocol,`${identity} item URL`).toBe('https:');
+   expect(typeof source.licenseUrl,`${identity} license URL`).toBe('string');
+   expect(new URL(source.licenseUrl).protocol,`${identity} license URL`).toBe('https:');
+   providers.add(source.source.provider.trim());
+  }
+  expect(providers.has('LyricForge')).toBe(true);
+  expect(providers.has('Google Fonts')).toBe(true);
+  expect(providers.size).toBeGreaterThanOrEqual(2);
  });
 
  it('produces byte-identical packages and hashes for identical inputs',()=>{
@@ -84,9 +135,28 @@ describe('official catalog builder',()=>{
   expect(()=>assertTrustedCatalogSource(creativeSource())).not.toThrow();
  });
 
+ it('requires structured source metadata for externally authored official items',()=>{
+  const external={...attributedExternalSource(),source:undefined};
+  expect(()=>assertTrustedCatalogSource(external)).toThrow(/source metadata/i);
+  expect(()=>assertTrustedCatalogSource(attributedExternalSource())).not.toThrow();
+ });
+
+ it('requires creator and attribution for attribution-bearing Creative Commons items',()=>{
+  const external=attributedExternalSource();
+  expect(()=>assertTrustedCatalogSource({...external,source:{...external.source,creator:undefined}})).toThrow(/creator/i);
+  expect(()=>assertTrustedCatalogSource({...external,source:{...external.source,attribution:undefined}})).toThrow(/attribution/i);
+ });
+
+ it('copies structured source metadata into generated remote manifests',()=>{
+  const source=attributedExternalSource();
+  const built=buildAssetPackage(source,{'preset.json':{mime:'application/json',bytes:encoder.encode(stableJson(source.preset))}});
+  const remote=remoteManifestFromSource(source,built,'assets/effect/commons-glow/1.0.0') as {source?:unknown};
+  expect(remote.source).toEqual(source.source);
+ });
+
  it('supports a redistributable font payload with its license in the same package',()=>{
   const source={
-   schemaVersion:1,id:'catalog.font.bebas-neue',version:'1.0.0',type:'font' as const,name:'Bebas Neue',description:'Condensed display font.',author:'Ryoichi Tsunekawa / Dharma Type',sourceUrl:'https://github.com/google/fonts/tree/main/ofl/bebasneue',license:'OFL-1.1',licenseUrl:'https://openfontlicense.org/open-font-license-official-text/',tags:['display','condensed'],minAppVersion:'0.1.0',font:{family:'Bebas Neue',style:'normal' as const,weight:400},preview:{kind:'image' as const,file:'preview.svg'},
+   schemaVersion:1,id:'catalog.font.bebas-neue',version:'1.0.0',type:'font' as const,name:'Bebas Neue',description:'Condensed display font.',author:'Ryoichi Tsunekawa / Dharma Type',sourceUrl:'https://github.com/google/fonts/tree/main/ofl/bebasneue',source:{provider:'Google Fonts',itemUrl:'https://fonts.google.com/specimen/Bebas+Neue',creator:'Ryoichi Tsunekawa / Dharma Type'},license:'OFL-1.1',licenseUrl:'https://openfontlicense.org/open-font-license-official-text/',tags:['display','condensed'],minAppVersion:'0.1.0',font:{family:'Bebas Neue',style:'normal' as const,weight:400},preview:{kind:'image' as const,file:'preview.svg'},
   };
   assertTrustedCatalogSource(source);
   const built=buildAssetPackage(source,{

@@ -27,6 +27,7 @@ export interface CatalogBrowseItem{
  name:string;
  description:string;
  author:string;
+ provider:string;
  license:string;
  tags:string[];
  manifest?:CatalogAssetManifest;
@@ -40,6 +41,7 @@ export interface CatalogBrowseItem{
 export interface CatalogSearchOptions{
  type?:CatalogAssetType;
  filter?:CatalogFilter;
+ provider?:string;
 }
 
 export interface CatalogUpdateState{
@@ -78,6 +80,7 @@ async function defaultFetchIndex(url:string):Promise<unknown>{
 
 const installedKey=(record:Pick<InstalledAssetVersion,'type'|'id'>)=>catalogAssetKey(record.type,record.id);
 const normalize=(value:string)=>value.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const providerForManifest=(manifest:CatalogAssetManifest)=>manifest.source?.provider??(manifest.author==='LyricForge'?'LyricForge':manifest.author);
 
 export class CatalogService{
  private readonly storage:CatalogStorage;
@@ -203,7 +206,7 @@ export class CatalogService{
   const currentVersion=this.snapshot.currentVersions[key];
   const update=this.getUpdateState(manifest.type,manifest.id)?.availableVersion;
   return {
-   source,id:manifest.id,type:manifest.type,version:manifest.version,name:manifest.name,description:manifest.description,author:manifest.author,license:manifest.license,tags:[...manifest.tags],manifest,
+   source,id:manifest.id,type:manifest.type,version:manifest.version,name:manifest.name,description:manifest.description,author:manifest.author,provider:providerForManifest(manifest),license:manifest.license,tags:[...manifest.tags],manifest,
    compatible:isAppVersionCompatible(this.appVersion,manifest),installed:this.snapshot.installed.some(item=>item.type===manifest.type&&item.id===manifest.id),favorite:this.snapshot.favorites.includes(key),currentVersion,availableUpdate:update,
   };
  }
@@ -211,7 +214,7 @@ export class CatalogService{
  private builtinItems():CatalogBrowseItem[]{
   return this.builtins.map(item=>{
    const key=catalogAssetKey(item.type,item.id);
-   return {source:'builtin',id:item.id,type:item.type,version:item.version,name:item.name,description:item.description??`Built-in ${item.name}`,author:item.author??'LyricForge',license:'Built-in',tags:item.tags?[...item.tags]:['built-in'],compatible:true,installed:true,favorite:this.snapshot.favorites.includes(key),currentVersion:item.version};
+   return {source:'builtin',id:item.id,type:item.type,version:item.version,name:item.name,description:item.description??`Built-in ${item.name}`,author:item.author??'LyricForge',provider:'LyricForge',license:'Built-in',tags:item.tags?[...item.tags]:['built-in'],compatible:true,installed:true,favorite:this.snapshot.favorites.includes(key),currentVersion:item.version};
   });
  }
 
@@ -231,7 +234,7 @@ export class CatalogService{
     items=[...combined.values()].filter(item=>item.favorite);break;
    }
    case 'Updates':{
-    for(const [key,record] of installed){
+    for(const [,record] of installed){
      const state=this.getUpdateState(record.type,record.id);
      if(!state?.availableVersion)continue;
      const manifest=this.findExact(record.type,record.id,state.availableVersion);
@@ -247,8 +250,13 @@ export class CatalogService{
    }
   }
   if(options.type)items=items.filter(item=>item.type===options.type);
+  if(options.provider)items=items.filter(item=>item.provider===options.provider);
   const tokens=normalize(query).split(' ').filter(Boolean);
-  if(tokens.length)items=items.filter(item=>{const haystack=normalize([item.name,item.description,item.author,...item.tags].join(' '));return tokens.every(token=>haystack.includes(token));});
+  if(tokens.length)items=items.filter(item=>{
+   const source=item.manifest?.source;
+   const haystack=normalize([item.name,item.description,item.author,item.provider,source?.creator??'',source?.attribution??'',source?.discoveredVia??'',...item.tags].join(' '));
+   return tokens.every(token=>haystack.includes(token));
+  });
   return items.sort((a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id)||compareSemVer(b.version,a.version));
  }
 }
