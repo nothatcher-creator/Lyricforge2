@@ -120,9 +120,9 @@ For each unprotected lyric segment:
 
 ### Focused re-listen pass
 
-For lines that remain `check` or `uncertain`, the aligner may run a focused second recognition pass over only the estimated local window using the same selected model/provider. This pass is used only to search for additional anchors around that line. It must not alter text.
+For lines that remain `check` or `uncertain`, the **local Whisper provider** may run a focused second recognition pass over only the estimated local sample window using the same selected model. This pass is used only to search for additional anchors around that line. It must not alter text.
 
-The focused pass is capped to uncertain regions so it does not double the cost of every alignment.
+The focused pass is capped to uncertain regions so it does not double the cost of every alignment. In the first release, custom HTTP providers remain single-pass because the existing HTTP contract uploads the source audio blob rather than an arbitrary sample window. HTTP alignment still receives the full waveform-analysis refinement from Stages C and E.
 
 ## Confidence model
 
@@ -133,13 +133,13 @@ Line confidence becomes a blend of independent evidence:
 - audio-boundary support for unanchored words/line edges
 - continuity with neighboring aligned/protected lines
 
-Suggested weights for the initial implementation:
+Initial deterministic weights:
 
 - text evidence: 65%
 - audio evidence: 25%
 - continuity/bounds: 10%
 
-These are implementation defaults, not user-facing promises, and should be covered by deterministic tests.
+These weights should be constants with regression coverage rather than hidden magic numbers scattered through the implementation.
 
 Existing quality buckets remain:
 
@@ -155,7 +155,7 @@ Existing quality buckets remain:
 - Listening for vocal timing
 - Recognizing words
 - Matching exact lyrics
-- Re-listening to uncertain sections (only when needed)
+- Re-listening to uncertain sections (local provider only, and only when needed)
 - Alignment ready to review
 
 Add an **Audio-aware refinement** toggle, enabled by default. Turning it off reproduces the text/timestamp-only alignment behavior for debugging and fallback.
@@ -187,7 +187,7 @@ interface CatalogSourceDescriptor {
 }
 ```
 
-Examples of provider labels:
+Initial provider labels:
 
 - LyricForge
 - Google Fonts
@@ -211,6 +211,8 @@ For every external catalog item:
 - build validation rejects missing required attribution/license metadata
 
 Openverse-discovered items must link back to the original work and have their individual license checked before inclusion. Wikimedia items likewise use the individual file's license metadata.
+
+The shipped catalog must contain at least **three distinct provider labels** overall. Elements must include original LyricForge content plus curated content from at least **two external source/provider paths** when enough license-safe assets pass verification. If an external provider cannot meet the verification rules, the build must prefer fewer external items plus original LyricForge assets rather than weakening license validation.
 
 ## Initial depth target
 
@@ -307,7 +309,7 @@ An element package contains:
 - optional preview image if the element file itself is not used as preview
 - license/attribution metadata when required
 
-No scripts or executable code are allowed in element packages.
+No scripts or executable code are allowed in element packages. SVG validation must reject script elements, event-handler attributes, external network references, and other active content before an SVG can enter the official catalog or be installed through the catalog package path.
 
 ## Installing and inserting
 
@@ -358,7 +360,7 @@ The first 24+ Elements should intentionally cover different lyric-video use case
 - torn-paper edges
 - retro scanline overlays
 
-A meaningful portion should be original LyricForge SVG assets so the catalog remains useful even if external providers change policies. External curated elements supplement, not replace, the original pack.
+At least 12 of the initial Elements should be original LyricForge SVG assets so the catalog remains useful even if external providers change policies. External curated elements supplement, not replace, the original pack.
 
 # 4. Compatibility and Schema Strategy
 
@@ -386,7 +388,7 @@ Add deterministic tests covering:
 - selected-range bounds remain respected
 - no-crossing monotonic timing
 - transcript-only fallback when feature extraction is unavailable
-- focused re-listen only runs for low-confidence regions
+- focused re-listen only runs for low-confidence regions and only for the local provider
 - one Undo restores the pre-alignment state
 
 Synthetic waveform fixtures should be generated in tests so alignment tests do not depend on external audio files.
@@ -397,11 +399,12 @@ Add tests covering:
 
 - at least 12 items in each legacy category
 - at least 24 Elements
+- at least three provider labels overall
 - every external item has provider/source/license metadata
 - required-attribution licenses have attribution metadata
 - duplicate ids/versions rejected
 - unsupported executable runtime ids rejected
-- Element packages reject scripts/executable files
+- Element packages reject scripts/executable files and active SVG content
 - package hashes validated
 - provider filtering/search
 
@@ -417,7 +420,7 @@ Add tests covering:
 - dependency recorded
 - project reload preserves element dependency
 - missing element is surfaced in Restore Dependencies
-- PNG and SVG rendering work in preview/export paths through the existing image clip renderer
+- PNG and sanitized SVG rendering work in preview/export paths through the existing image clip renderer
 
 # 6. Acceptance Criteria
 
@@ -430,10 +433,11 @@ The feature is ready to merge when all of the following are true:
 5. Current manual/protected timing behavior remains intact.
 6. Catalog shows at least 72 official items with the category minimums above.
 7. Catalog exposes source/provider information and preserves license/attribution metadata.
-8. Elements appears as a fifth catalog category with at least 24 usable items.
-9. Installed Elements can be added directly to the project as normal editable visual clips.
-10. Old projects and old installed catalog packages continue to load.
-11. Unit, legacy, catalog validation, production build, and GitHub Pages artifact verification all pass before merge.
+8. The catalog contains at least three provider labels overall without weakening per-item license verification.
+9. Elements appears as a fifth catalog category with at least 24 usable items, at least 12 of them original LyricForge assets.
+10. Installed Elements can be added directly to the project as normal editable visual clips.
+11. Old projects and old installed catalog packages continue to load.
+12. Unit, legacy, catalog validation, production build, and GitHub Pages artifact verification all pass before merge.
 
 # 7. Rollout Order
 
