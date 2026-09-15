@@ -120,7 +120,12 @@ describe('creative catalog acceptance',()=>{
   expect(installed.map(item=>item.type).sort()).toEqual(['effect','font','text-animation','transition']);
   expect(catalogFontFamily('catalog.font.bebas-neue','1.0.0','Bebas Neue')).toBe('LyricForge Catalog Bebas Neue [catalog.font.bebas-neue@1.0.0]');
   for(const fixture of fixtures.filter(item=>item.manifest.type!=='font'))expect(isTrustedRuntime(fixture.manifest.type as 'effect'|'transition'|'text-animation',fixture.manifest.runtimeId!)).toBe(true);
-  creativeRegistry.replaceInstalled(fixtures.filter(item=>item.manifest.type!=='font').map(item=>definitionFromInstalledManifest(item.manifest)));
+  creativeRegistry.replaceInstalled(fixtures.filter(item=>item.manifest.type!=='font').map(item=>{
+   const manifest=item.manifest;
+   const trusted=creativeRegistry.trustedRuntime(manifest.type as 'effect'|'transition'|'text-animation',manifest.runtimeId!);
+   if(!trusted)throw new Error(`Acceptance fixture runtime is not trusted: ${manifest.runtimeId}`);
+   return definitionFromInstalledManifest(manifest,trusted);
+  }));
   expect(creativeRegistry.resolve('effect','catalog.effect.neon-pulse','1.0.0')?.runtime).toBe('effect.glow');
 
   const offline=new CatalogService({storage,appVersion:APP_VERSION,builtins:[],fetchIndex:async()=>{throw new Error('offline');}});
