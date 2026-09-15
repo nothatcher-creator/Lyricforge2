@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {ALIGNMENT_AUDIO_CONFIG,analyzeAlignmentAudio,findSupportedBoundary} from '../audio-alignment';
+import {ALIGNMENT_AUDIO_CONFIG,analyzeAlignmentAudio,buildFocusedRelistenWindows,findSupportedBoundary} from '../audio-alignment';
 
 function addTone(samples:Float32Array,sampleRate:number,startMs:number,endMs:number,amplitude:number,frequency=230){
  const start=Math.floor(startMs/1000*sampleRate);
@@ -9,7 +9,7 @@ function addTone(samples:Float32Array,sampleRate:number,startMs:number,endMs:num
 
 describe('audio alignment feature extraction',()=>{
  it('uses the locked deterministic analysis constants',()=>{
-  expect(ALIGNMENT_AUDIO_CONFIG).toMatchObject({frameMs:20,smoothingFrames:3,noiseFloorPercentile:.2,minBoundarySpacingMs:60,edgeSnapRadiusMs:180});
+  expect(ALIGNMENT_AUDIO_CONFIG).toMatchObject({frameMs:20,smoothingFrames:3,noiseFloorPercentile:.2,minBoundarySpacingMs:60,edgeSnapRadiusMs:180,relistenPaddingMs:1500,maxRelistenWindows:8,maxRelistenDurationMs:45000});
  });
 
  it('finds audible boundaries while leaving a quiet gap empty',()=>{
@@ -56,5 +56,16 @@ describe('audio alignment feature extraction',()=>{
   expect([...a.activity]).toEqual([...b.activity]);
   expect([...a.onset]).toEqual([...b.onset]);
   expect(a.boundaries).toEqual(b.boundaries);
+ });
+
+ it('pads and merges focused re-listen windows without exceeding the limits',()=>{
+  const windows=buildFocusedRelistenWindows([
+   {start:5000,end:7000},{start:7600,end:9000},{start:20000,end:23000},{start:40000,end:70000},
+  ],80000);
+  expect(windows[0]).toEqual({start:3500,end:10500});
+  expect(windows[1]).toEqual({start:18500,end:24500});
+  expect(windows.length).toBeLessThanOrEqual(ALIGNMENT_AUDIO_CONFIG.maxRelistenWindows);
+  expect(windows.reduce((total,window)=>total+window.end-window.start,0)).toBeLessThanOrEqual(ALIGNMENT_AUDIO_CONFIG.maxRelistenDurationMs);
+  expect(windows.every((window,index)=>index===0||window.start>=windows[index-1].end)).toBe(true);
  });
 });
