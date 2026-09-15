@@ -47,9 +47,9 @@ function attributedExternalSource(){
 }
 
 describe('official catalog builder',()=>{
- it('ships at least six official choices in every browse category',()=>{
+ it('ships at least twelve official choices in every existing browse category',()=>{
   for(const type of ['font','effect','transition','text-animation']){
-   expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(6);
+   expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(12);
   }
  });
 
