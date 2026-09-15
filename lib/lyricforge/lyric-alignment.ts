@@ -1,4 +1,4 @@
-import {ALIGNMENT_AUDIO_CONFIG,findSupportedBoundary,type AudioAlignmentFeatures} from './audio-alignment';
+import {ALIGNMENT_AUDIO_CONFIG,alignmentFeatureStrength,findSupportedBoundary,type AudioAlignmentFeatures} from './audio-alignment';
 import {clamp,type AlignmentQuality,type Project,type Word} from './model';
 
 export interface AlignmentInputLine{
@@ -173,11 +173,6 @@ function interpolateWords(tokens:readonly LyricToken[],anchors:Map<number,Anchor
   return words;
 }
 
-function featureStrength(features:AudioAlignmentFeatures,time:number){
-  const index=Math.min(features.onset.length-1,Math.max(0,Math.round(time/features.frameMs)));
-  return (features.onset[index]??0)*.72+(features.activity[index]??0)*.28;
-}
-
 function refineWithAudio(
   tokens:readonly LyricToken[],
   anchors:Map<number,Anchor>,
@@ -202,7 +197,7 @@ function refineWithAudio(
 
     const candidates=features.boundaries
       .filter(time=>time>=leftTime&&time<rightTime)
-      .map(time=>({time,strength:featureStrength(features,time)}))
+      .map(time=>({time,strength:alignmentFeatureStrength(features,time)}))
       .filter(candidate=>candidate.strength>.05)
       .sort((a,b)=>b.strength-a.strength||a.time-b.time)
       .slice(0,count)
