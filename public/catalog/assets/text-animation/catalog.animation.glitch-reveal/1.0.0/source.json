@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.animation.glitch-reveal",
+  "version": "1.0.0",
+  "type": "text-animation",
+  "name": "Glitch Reveal",
+  "description": "Digital glitch reveal for electronic, metal, and high-impact text entrances.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["glitch", "reveal", "digital"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "animation.glitch-reveal",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

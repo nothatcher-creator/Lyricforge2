@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.effect.cinematic-bloom",
+  "version": "1.0.0",
+  "type": "effect",
+  "name": "Cinematic Bloom",
+  "description": "Soft highlight bloom for dreamy hooks, choruses, and luminous titles.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["bloom", "cinematic", "light"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "effect.bloom",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

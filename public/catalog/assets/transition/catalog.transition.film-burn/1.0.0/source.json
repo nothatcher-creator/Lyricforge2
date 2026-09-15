@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.transition.film-burn",
+  "version": "1.0.0",
+  "type": "transition",
+  "name": "Film Burn",
+  "description": "Warm film-burn transition for vintage, indie, and cinematic edits.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["film", "burn", "vintage"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "transition.film-burn",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

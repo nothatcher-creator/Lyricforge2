@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.bangers",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Bangers",
+  "description": "Comic-inspired display face with loud personality for playful or explosive lyrics.",
+  "author": "Vernon Adams",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bangers",
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["comic", "display", "loud"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Bangers", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "Bangers-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bangers/Bangers-Regular.ttf", "gitBlobSha1": "9b0f8c1f1b45e7bb4971b7d6a8604f9aacacdd32"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/bangers/OFL.txt", "gitBlobSha1": "bf717d4be410cf7616b9bd345b40ab4817a26e6f"}
+  ]
+}

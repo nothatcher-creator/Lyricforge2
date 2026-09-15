@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.lobster",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Lobster",
+  "description": "Distinctive connected script for expressive song titles and standout chorus text.",
+  "author": "Pablo Impallari",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/lobster",
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["script", "display", "expressive"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Lobster", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "Lobster-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/lobster/Lobster-Regular.ttf", "gitBlobSha1": "f30b6f66cea410dac2227c04daf40e64c6a8ae4f"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/lobster/OFL.txt", "gitBlobSha1": "a41143009ff2e05dac1d371d26738bc1c2d7f07c"}
+  ]
+}
