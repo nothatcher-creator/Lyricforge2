@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.transition.flash-hit",
+  "version": "1.0.0",
+  "type": "transition",
+  "name": "Flash Hit",
+  "description": "Bright flash transition for beat drops, impacts, and hard cuts.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["flash", "impact", "beat"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "transition.flash",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

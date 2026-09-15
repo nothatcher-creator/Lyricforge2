@@ -4,3 +4,7 @@ export function classifyTimelineTouchGesture(dx:number,dy:number,threshold=8):Ti
   if(Math.hypot(dx,dy)<threshold)return 'tap';
   return Math.abs(dy)>Math.abs(dx)?'pan-y':'pan-x';
 }
+
+export function shouldCommitTimelineClipTap(eventType:string,moved:boolean):boolean{
+  return eventType==='pointerup'&&!moved;
+}

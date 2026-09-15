@@ -1,8 +1,19 @@
+import {readdirSync,statSync} from 'node:fs';
+import {join} from 'node:path';
 import {describe,expect,it} from 'vitest';
 import {strFromU8,unzipSync} from 'fflate';
 import {buildAssetPackage,stableJson,sortCatalogItems,assertTrustedCatalogSource} from '../../../scripts/catalog-lib.mjs';
 
 const encoder=new TextEncoder();
+
+function countCatalogSources(root:string):number{
+ return readdirSync(root).reduce((count,name)=>{
+  const path=join(root,name);
+  const stat=statSync(path);
+  if(stat.isDirectory())return count+countCatalogSources(path);
+  return count+(name==='source.json'?1:0);
+ },0);
+}
 
 function creativeSource(){
  return {
@@ -24,6 +35,12 @@ function creativeSource(){
 }
 
 describe('official catalog builder',()=>{
+ it('ships at least six official choices in every browse category',()=>{
+  for(const type of ['font','effect','transition','text-animation']){
+   expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(6);
+  }
+ });
+
  it('produces byte-identical packages and hashes for identical inputs',()=>{
   const source=creativeSource();
   const payloads={'preset.json':{mime:'application/json',bytes:encoder.encode(stableJson(source.preset))}};

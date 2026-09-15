@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.alfa-slab-one",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Alfa Slab One",
+  "description": "Heavy slab display face for bold choruses, rock titles, and dramatic lyric cards.",
+  "author": "JM Solé",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/alfaslabone",
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["slab", "bold", "rock"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Alfa Slab One", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "AlfaSlabOne-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/alfaslabone/AlfaSlabOne-Regular.ttf", "gitBlobSha1": "0158f184619023509f750ad3def1c39be2bd7872"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/alfaslabone/OFL.txt", "gitBlobSha1": "211557706419756d1f526285f044e27a39f9466f"}
+  ]
+}

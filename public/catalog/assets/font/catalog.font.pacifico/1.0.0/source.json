@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.pacifico",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Pacifico",
+  "description": "Friendly brush script for romantic, relaxed, and handwritten lyric styles.",
+  "author": "Vernon Adams",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pacifico",
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["script", "brush", "romantic"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Pacifico", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "Pacifico-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pacifico/Pacifico-Regular.ttf", "gitBlobSha1": "27765d02ac13f241b1e207dbda7b2dd1b68280da"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pacifico/OFL.txt", "gitBlobSha1": "33864cc8de4dd3ea8f3daab1154be28577918bae"}
+  ]
+}

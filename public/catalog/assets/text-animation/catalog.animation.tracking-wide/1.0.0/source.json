@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.animation.tracking-wide",
+  "version": "1.0.0",
+  "type": "text-animation",
+  "name": "Tracking Wide",
+  "description": "Expanding letter spacing animation for cinematic titles and airy lyric entrances.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["tracking", "letters", "cinematic"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "animation.tracking",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

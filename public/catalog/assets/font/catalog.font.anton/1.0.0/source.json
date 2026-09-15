@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.anton",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Anton",
+  "description": "Bold compact display lettering for hooks, titles, and high-impact lyrics.",
+  "author": "Vernon Adams",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/anton",
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["display", "bold", "titles"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Anton", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "Anton-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/anton/Anton-Regular.ttf", "gitBlobSha1": "4d65707db9d8663ccfa99cd28cd3a4e0025be178"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/anton/OFL.txt", "gitBlobSha1": "93feddee37145696e123ea65a6772cab09663f9e"}
+  ]
+}

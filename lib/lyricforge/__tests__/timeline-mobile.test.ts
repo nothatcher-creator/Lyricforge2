@@ -32,6 +32,16 @@ describe('mobile timeline ergonomics',()=>{
     expect(timeline).toContain("e.pointerType==='touch'");
     expect(css).toContain('.mode-phone-portrait .track-lane{touch-action:pan-x pan-y');
   });
+  it('lets vertical touch gestures that begin on clips scroll lower tracks without seeking on pointer cancel',async()=>{
+    const modulePath='../timeline-interaction';
+    const interaction=await import(modulePath).catch(()=>({}));
+    const shouldCommit=(interaction as {shouldCommitTimelineClipTap?:(eventType:string,moved:boolean)=>boolean}).shouldCommitTimelineClipTap;
+    expect(shouldCommit).toBeTypeOf('function');
+    expect(shouldCommit!('pointerup',false)).toBe(true);
+    expect(shouldCommit!('pointerup',true)).toBe(false);
+    expect(shouldCommit!('pointercancel',false)).toBe(false);
+    expect(css).toContain('.mode-phone-portrait .timeline-clip{top:4px;height:42px;touch-action:pan-y');
+  });
   it('gives portrait sheets more room and lets nested menu tabs scroll instead of squeezing',()=>{
     expect(css).toContain('.mode-phone-portrait .library-panel{');
     expect(css).toContain('height:min(68dvh,640px)');

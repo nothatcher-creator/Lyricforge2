@@ -7,6 +7,8 @@
 
 @media (max-width:760px) and (orientation:portrait){
   .mode-phone-portrait .track-lane{touch-action:pan-x pan-y}
+  .mode-phone-portrait .timeline-clip{top:4px;height:42px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+  .mode-phone-portrait [data-clip-handle],.mode-phone-portrait .timeline-transition,.mode-phone-portrait [data-transition-handle]{touch-action:pan-y}
   .mode-phone-portrait .library-panel{left:4px;right:4px;height:min(68dvh,640px);max-height:calc(100dvh - 110px)}
   .mode-phone-portrait .inspector-container{left:4px;right:4px;height:min(62dvh,600px);max-height:calc(100dvh - 110px)}
   .mode-phone-portrait .tool-rail-tabs{flex:1!important;min-width:0;width:auto!important;gap:1px!important;padding:0 2px!important;scroll-snap-type:x proximity;scroll-padding-inline:2px}
