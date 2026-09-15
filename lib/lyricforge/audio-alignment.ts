@@ -6,6 +6,9 @@ export const ALIGNMENT_AUDIO_CONFIG={
  noiseFloorPercentile:.2,
  minBoundarySpacingMs:60,
  edgeSnapRadiusMs:180,
+ relistenPaddingMs:1500,
+ maxRelistenWindows:8,
+ maxRelistenDurationMs:45000,
 } as const;
 
 export interface AudioAlignmentFeatures{
@@ -15,6 +18,8 @@ export interface AudioAlignmentFeatures{
  onset:Float32Array;
  boundaries:number[];
 }
+
+export interface AlignmentWindow{start:number;end:number}
 
 function percentile(values:Float32Array,ratio:number){
  if(!values.length)return 0;
@@ -101,4 +106,32 @@ export function findSupportedBoundary(features:AudioAlignmentFeatures,targetMs:n
   if(!best||strength>best.strength||strength===best.strength&&distance<Math.abs(best.time-targetMs))best={time,strength};
  }
  return best;
+}
+
+export function buildFocusedRelistenWindows(spans:readonly AlignmentWindow[],audioDurationMs:number):AlignmentWindow[]{
+ const duration=Math.max(0,Math.round(audioDurationMs));
+ const padded=spans
+  .filter(span=>Number.isFinite(span.start)&&Number.isFinite(span.end)&&span.end>span.start)
+  .map(span=>({
+   start:clamp(Math.round(span.start-ALIGNMENT_AUDIO_CONFIG.relistenPaddingMs),0,duration),
+   end:clamp(Math.round(span.end+ALIGNMENT_AUDIO_CONFIG.relistenPaddingMs),0,duration),
+  }))
+  .filter(span=>span.end>span.start)
+  .sort((a,b)=>a.start-b.start||a.end-b.end);
+ const merged:AlignmentWindow[]=[];
+ for(const span of padded){
+  const previous=merged.at(-1);
+  if(previous&&span.start<=previous.end)previous.end=Math.max(previous.end,span.end);
+  else merged.push({...span});
+ }
+ const limited:AlignmentWindow[]=[];
+ let used=0;
+ for(const span of merged){
+  if(limited.length>=ALIGNMENT_AUDIO_CONFIG.maxRelistenWindows||used>=ALIGNMENT_AUDIO_CONFIG.maxRelistenDurationMs)break;
+  const allowance=ALIGNMENT_AUDIO_CONFIG.maxRelistenDurationMs-used;
+  const length=span.end-span.start;
+  const end=length<=allowance?span.end:span.start+allowance;
+  if(end>span.start){limited.push({start:span.start,end});used+=end-span.start;}
+ }
+ return limited;
 }
