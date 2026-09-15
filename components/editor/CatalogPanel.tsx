@@ -35,13 +35,17 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
  const [type,setType]=useState<CatalogAssetType>('effect');
  const [filter,setFilter]=useState<CatalogFilter>('Online');
  const [query,setQuery]=useState('');
+ const [provider,setProvider]=useState('');
  const [selected,setSelected]=useState<CatalogBrowseItem|null>(null);
  const [busy,setBusy]=useState<string|null>(null);
  const [actionError,setActionError]=useState('');
  const snapshot=service.getSnapshot();
 
  useEffect(()=>{void service.load();},[service]);
- const items=useMemo(()=>service.search(query,{type,filter}),[service,query,type,filter,snapshot]);
+ const providerItems=useMemo(()=>service.search(query,{type,filter}),[service,query,type,filter,snapshot]);
+ const providers=useMemo(()=>[...new Set(providerItems.map(item=>item.provider))].sort((a,b)=>a.localeCompare(b)),[providerItems]);
+ const items=useMemo(()=>service.search(query,{type,filter,...(provider?{provider}:{})}),[service,query,type,filter,provider,snapshot]);
+ useEffect(()=>{if(provider&&!providers.includes(provider))setProvider('');},[provider,providers]);
  useEffect(()=>{if(selected){const fresh=items.find(item=>item.id===selected.id&&item.type===selected.type);if(fresh)setSelected(fresh);}},[items,selected]);
 
  async function refreshAfter(action:()=>Promise<unknown>,key:string){
@@ -75,12 +79,13 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
   </div>
 
   <div className="catalog-tabs" role="tablist" aria-label="Catalog asset types">
-   {ASSET_TABS.map(tab=><button key={tab.type} type="button" role="tab" aria-selected={type===tab.type} className={type===tab.type?'active':''} onClick={()=>{setType(tab.type);setSelected(null);}}>{tab.label}</button>)}
+   {ASSET_TABS.map(tab=><button key={tab.type} type="button" role="tab" aria-selected={type===tab.type} className={type===tab.type?'active':''} onClick={()=>{setType(tab.type);setProvider('');setSelected(null);}}>{tab.label}</button>)}
   </div>
-  <label className="catalog-search"><Search size={16}/><span className="sr-only">Search catalog</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search assets, authors, tags…" aria-label="Search catalog"/></label>
+  <label className="catalog-search"><Search size={16}/><span className="sr-only">Search catalog</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search assets, authors, providers, tags…" aria-label="Search catalog"/></label>
   <div className="catalog-filters" aria-label="Catalog filters">
-   {FILTERS.map(value=><button key={value} type="button" className={filter===value?'active':''} aria-pressed={filter===value} onClick={()=>{setFilter(value);setSelected(null);}}>{value}</button>)}
+   {FILTERS.map(value=><button key={value} type="button" className={filter===value?'active':''} aria-pressed={filter===value} onClick={()=>{setFilter(value);setProvider('');setSelected(null);}}>{value}</button>)}
   </div>
+  {providers.length>1?<label className="catalog-provider-filter"><span>Provider</span><select aria-label="Provider filter" value={provider} onChange={event=>{setProvider(event.target.value);setSelected(null);}}><option value="">All providers</option>{providers.map(value=><option key={value} value={value}>{value}</option>)}</select></label>:null}
 
   {snapshot.refreshError?<div className="catalog-notice" role="status">Offline or refresh issue: {snapshot.refreshError}</div>:null}
   {actionError?<div className="catalog-error" role="alert">{actionError}</div>:null}
@@ -97,7 +102,7 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
       <div className="catalog-card-body">
        <div className="catalog-card-title"><div><strong>{item.name}</strong><span>{item.author}</span></div><button type="button" className={`catalog-favorite${item.favorite?' active':''}`} aria-label={item.favorite?`Remove ${item.name} from favorites`:`Favorite ${item.name}`} onClick={()=>void toggleFavorite(item)}><Heart size={17} fill={item.favorite?'currentColor':'none'}/></button></div>
        <p>{item.description}</p>
-       <div className="catalog-meta"><span>v{updating?item.availableUpdate:item.version}</span><span>{item.license}</span>{item.manifest?<span>{formatBytes(item.manifest.package.size)}</span>:null}</div>
+       <div className="catalog-meta"><span className="catalog-provider-chip" aria-label={`Source provider ${item.provider}`}>{item.provider}</span><span>v{updating?item.availableUpdate:item.version}</span><span>{item.license}</span>{item.manifest?<span>{formatBytes(item.manifest.package.size)}</span>:null}</div>
        <div className="catalog-card-actions">
         <button type="button" className="catalog-secondary" onClick={()=>setSelected(item)} aria-label={`Details ${item.name}`}>Details</button>
         <button type="button" className="catalog-primary" style={mobile?{minHeight:'44px'}:undefined} disabled={disabled} aria-label={`${label} ${item.name}`} onClick={()=>void primaryAction(item)}>{busy===key?'Working…':label}</button>
@@ -115,14 +120,17 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
     <dl>
      <div><dt>Version</dt><dd>{selected.version}</dd></div>
      <div><dt>Author</dt><dd>{selected.author}</dd></div>
+     <div><dt>Provider</dt><dd>{selected.provider}</dd></div>
      <div><dt>License</dt><dd>{selected.license}</dd></div>
      <div><dt>Status</dt><dd>{selected.compatible?selected.installed?'Installed':'Compatible':'Incompatible'}</dd></div>
+     {selected.manifest?.source?.creator?<div><dt>Creator</dt><dd>{selected.manifest.source.creator}</dd></div>:null}
+     {selected.manifest?.source?.attribution?<div><dt>Attribution</dt><dd>{selected.manifest.source.attribution}</dd></div>:null}
      {selected.manifest?.runtimeId?<div><dt>Trusted runtime</dt><dd>{selected.manifest.runtimeId}</dd></div>:null}
      {selected.manifest?<div><dt>Package</dt><dd>{formatBytes(selected.manifest.package.size)}</dd></div>:null}
     </dl>
     {selected.manifest?.changelog?<><h4>Changelog</h4><p>{selected.manifest.changelog}</p></>:null}
     {selected.manifest?.preset&&Object.keys(selected.manifest.preset).length?<><h4>Preset</h4><div className="catalog-param-list">{Object.entries(selected.manifest.preset).map(([name,value])=><span key={name}>{name}: {String(value)}</span>)}</div></>:null}
-    {selected.manifest?.sourceUrl?<a href={selected.manifest.sourceUrl} target="_blank" rel="noreferrer">View source</a>:null}
+    {selected.manifest?.source?.itemUrl?<a href={selected.manifest.source.itemUrl} target="_blank" rel="noreferrer">View original item</a>:selected.manifest?.sourceUrl?<a href={selected.manifest.sourceUrl} target="_blank" rel="noreferrer">View source</a>:null}
     {selected.manifest?.licenseUrl?<a href={selected.manifest.licenseUrl} target="_blank" rel="noreferrer">View license</a>:null}
    </aside>:null}
   </div>
