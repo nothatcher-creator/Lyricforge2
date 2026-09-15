@@ -81,7 +81,7 @@ describe('trusted creative render operations',()=>{
     const second=fakeContext();
     const grain:ResolvedEffect={instanceId:'grain',assetId:'builtin.effect.grain',version:'1.0.0',runtime:'effect.grain',params:{amount:.5,size:1},quality:'full',scope:'clip',audioReactive:0};
     renderEffect(first.ctx,source,grain,{width:160,height:90,frameIndex:30,timeMs:1000});
-    renderEffect(second.ctx,source,grain,{...grain},{width:160,height:90,frameIndex:60,timeMs:1000});
+    renderEffect(second.ctx,source,grain,{width:160,height:90,frameIndex:60,timeMs:1000});
     expect(second.trace).toEqual(first.trace);
   });
 
