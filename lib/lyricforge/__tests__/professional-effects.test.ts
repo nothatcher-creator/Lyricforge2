@@ -54,7 +54,7 @@ describe('professional single-frame effects',()=>{
     let draws=0;
     const ctx={save(){},restore(){},drawImage(){draws++;},globalAlpha:1} as unknown as CanvasRenderingContext2D;
     const effect:ResolvedEffect={instanceId:'directional-high',assetId:'builtin.effect.directional-blur',version:'1.0.0',runtime:'effect.directional-blur',params:{amount:30,angle:45,samples:20},quality:'full',scope:'clip',audioReactive:0};
-    renderEffect(ctx,{} as CanvasImageSource,effect,{width:1920,height:1080,frameIndex:0,timeMs:0,quality:'preview-high'} as never);
+    renderEffect(ctx,{} as CanvasImageSource,effect,{width:1920,height:1080,frameIndex:0,timeMs:0,quality:'preview-high'});
     expect(draws).toBe(12);
   });
 
