@@ -1,4 +1,4 @@
-import {readdirSync,statSync} from 'node:fs';
+import {readFileSync,readdirSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe,expect,it} from 'vitest';
 import {strFromU8,unzipSync} from 'fflate';
@@ -13,6 +13,16 @@ function countCatalogSources(root:string):number{
   if(stat.isDirectory())return count+countCatalogSources(path);
   return count+(name==='source.json'?1:0);
  },0);
+}
+
+function readCatalogSources(root:string):Record<string,any>[] {
+ return readdirSync(root).flatMap(name=>{
+  const path=join(root,name);
+  const stat=statSync(path);
+  if(stat.isDirectory())return readCatalogSources(path);
+  if(name!=='source.json')return [];
+  return [JSON.parse(readFileSync(path,'utf8')) as Record<string,any>];
+ });
 }
 
 function creativeSource(){
@@ -51,6 +61,35 @@ describe('official catalog builder',()=>{
   for(const type of ['font','effect','transition','text-animation']){
    expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(12);
   }
+ });
+
+ it('enforces catalog-wide identity, provenance, license, and provider quality',()=>{
+  const sources=readCatalogSources(join('public','catalog','assets'));
+  const identities=new Set<string>();
+  const providers=new Set<string>();
+  for(const source of sources){
+   const identity=`${source.type}:${source.id}@${source.version}`;
+   expect(identities.has(identity),`duplicate ${identity}`).toBe(false);
+   identities.add(identity);
+   expect(typeof source.license,`${identity} license`).toBe('string');
+   expect(source.license.trim().length,`${identity} license`).toBeGreaterThan(0);
+   const internal=source.author==='LyricForge'&&typeof source.sourceUrl==='string'&&source.sourceUrl.startsWith('https://github.com/nothatcher-creator/Lyricforge2');
+   if(internal){
+    providers.add('LyricForge');
+    continue;
+   }
+   expect(source.source,`${identity} source metadata`).toBeTruthy();
+   expect(typeof source.source?.provider,`${identity} provider`).toBe('string');
+   expect(source.source.provider.trim().length,`${identity} provider`).toBeGreaterThan(0);
+   expect(()=>new URL(source.source.itemUrl),`${identity} item URL`).not.toThrow();
+   expect(new URL(source.source.itemUrl).protocol,`${identity} item URL`).toBe('https:');
+   expect(typeof source.licenseUrl,`${identity} license URL`).toBe('string');
+   expect(new URL(source.licenseUrl).protocol,`${identity} license URL`).toBe('https:');
+   providers.add(source.source.provider.trim());
+  }
+  expect(providers.has('LyricForge')).toBe(true);
+  expect(providers.has('Google Fonts')).toBe(true);
+  expect(providers.size).toBeGreaterThanOrEqual(2);
  });
 
  it('produces byte-identical packages and hashes for identical inputs',()=>{
