@@ -134,10 +134,12 @@ describe('creative catalog acceptance',()=>{
 
   const project=projectUsing(fixtures);
   const bundle=await bundleCatalogDependencies(project,storage);
-  expect(bundle.entries).toHaveLength(4);
+  expect(bundle.project.dependencies).toHaveLength(4);
+  expect(Object.keys(bundle.entries)).toHaveLength(8);
   const clean=createMemoryCatalogStorage();
-  const restored=await restoreBundledCatalogDependencies(bundle,clean,APP_VERSION);
-  expect(restored.map(item=>item.type).sort()).toEqual(['effect','font','text-animation','transition']);
+  const restored=await restoreBundledCatalogDependencies(bundle.project,bundle.entries,clean,{appVersion:APP_VERSION,isTrustedRuntime});
+  expect(restored.errors).toEqual([]);
+  expect(restored.restored.map(item=>item.type).sort()).toEqual(['effect','font','text-animation','transition']);
  });
 
  it('rejects corruption without disturbing the current version, repairs exact bytes, and rolls back without rewriting project refs',async()=>{
