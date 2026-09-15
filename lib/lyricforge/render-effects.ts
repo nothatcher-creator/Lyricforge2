@@ -1,4 +1,5 @@
 import type {ResolvedEffect} from './effect-runtime';
+import type {CreativeQuality} from './creative-registry';
 import type {RenderSurfacePool} from './render-surfaces';
 import {PRO_EFFECT_HANDLERS} from './render-effects-pro';
 
@@ -8,6 +9,7 @@ export interface EffectRenderEnvironment{
   height:number;
   frameIndex:number;
   timeMs:number;
+  quality:CreativeQuality;
   pool?:RenderSurfacePool;
 }
 export type EffectRenderHandler=(ctx:EffectCanvasContext,source:CanvasImageSource,effect:ResolvedEffect,env:EffectRenderEnvironment)=>void;
