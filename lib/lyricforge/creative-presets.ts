@@ -83,6 +83,8 @@ const effectSpecs:Record<string,EffectSpec>={
   'zoom-blur':{runtime:'effect.zoom-blur',category:'blur-sharpen',description:'Radial zoom blur centered anywhere in the frame.',params:{amount:num(0,0,1,.01,true,0),centerX:num(.5,0,1,.005,true),centerY:num(.5,0,1,.005,true),samples:num(10,2,24,1,false)},master:true,low:'simplified',bypassWhenNeutral:['amount']},
   'unsharp-mask':{runtime:'effect.unsharp-mask',category:'blur-sharpen',description:'Professional edge sharpening with radius and threshold control.',params:{amount:num(.5,0,2,.01,true,0),radius:num(2,.5,12,.1,true),threshold:num(.05,0,1,.005,true)},master:true,low:'simplified',bypassWhenNeutral:['amount']},
   'film-burn':{runtime:'effect.film-burn',category:'light',description:'Animated deterministic film burn with hot highlights and flicker.',params:{intensity:num(.6,0,1,.01,true,0),position:num(.5,0,1,.005,true),spread:num(.35,.05,1,.01,true),flicker:num(.2,0,1,.01,true),color:color('#ff6a20')},master:true,low:'simplified',bypassWhenNeutral:['intensity']},
+  'posterize-time':{runtime:'effect.posterize-time',category:'time',description:'Holds motion to a lower effective frame rate for a stepped temporal look.',params:{fps:num(12,1,60,1,true)},master:true},
+  echo:{runtime:'effect.echo',category:'time',description:'Blends deterministic historical frames into decaying motion trails.',params:{delayMs:num(120,10,2000,10,true),trails:num(4,1,12,1,true),decay:num(.6,0,1,.01,true,0)},master:true,low:'simplified',bypassWhenNeutral:['decay']},
 };
 
 const effectDefinitions:CreativeDefinition[]=Object.entries(effectSpecs).map(([slug,spec])=>({
