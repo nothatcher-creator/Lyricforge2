@@ -66,6 +66,23 @@ describe('creative runtime acceptance',()=>{
     expect(resolveAnimationRoles(migrated,migratedText,migratedText.start+100,'preview-high').sources.intro).toBe('legacy');
   });
 
+  it('keeps legacy glow, brightness, and VHS instances resolvable and in render order',()=>{
+    const project=createProject('legacy built-in effects');
+    const track=makeTrack('text','Text');
+    const clip=makeClip('text',track.id,0,1000,'Legacy');clip.id='legacy-text';
+    clip.effects=[
+      {id:'old-glow',assetId:'builtin.effect.glow',version:'1.0.0',enabled:true,params:{radius:12,intensity:.4},keyframes:{}},
+      {id:'old-brightness',assetId:'builtin.effect.brightness',version:'1.0.0',enabled:true,params:{amount:1.1},keyframes:{}},
+      {id:'old-vhs',assetId:'builtin.effect.vhs',version:'1.0.0',enabled:true,params:{scanlines:.3,noise:.15,jitter:.1},keyframes:{}},
+    ];
+    project.tracks=[track];project.clips=[clip];project.duration=1000;
+    for(const instance of clip.effects)expect(creativeRegistry.resolve('effect',instance.assetId,instance.version)?.runtime).toBeTruthy();
+    expect(resolveCreativeFrame(project,500,'preview-high').operationOrder).toEqual([
+      'clip:source:legacy-text','clip:effect:old-glow','clip:effect:old-brightness','clip:effect:old-vhs','scene:composite',
+    ]);
+    expect(new Renderer().recordFrame(project,500,{quality:'preview-high'}).plan.diagnostics).toEqual([]);
+  });
+
   it('keeps requested transition duration while exposing the clamped render duration',()=>{
     const project=createProject('short transition');
     const track=makeTrack('text','Text');
