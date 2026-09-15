@@ -118,7 +118,7 @@ describe('creative catalog acceptance',()=>{
   await service.refreshLocalState();
   const installed=service.search('',{filter:'Installed'});
   expect(installed.map(item=>item.type).sort()).toEqual(['effect','font','text-animation','transition']);
-  expect(catalogFontFamily('catalog.font.bebas-neue','1.0.0','Bebas Neue')).toContain('catalog-font--');
+  expect(catalogFontFamily('catalog.font.bebas-neue','1.0.0','Bebas Neue')).toBe('LyricForge Catalog Bebas Neue [catalog.font.bebas-neue@1.0.0]');
   for(const fixture of fixtures.filter(item=>item.manifest.type!=='font'))expect(isTrustedRuntime(fixture.manifest.type as 'effect'|'transition'|'text-animation',fixture.manifest.runtimeId!)).toBe(true);
   creativeRegistry.replaceInstalled(fixtures.filter(item=>item.manifest.type!=='font').map(item=>definitionFromInstalledManifest(item.manifest)));
   expect(creativeRegistry.resolve('effect','catalog.effect.neon-pulse','1.0.0')?.runtime).toBe('effect.glow');
@@ -148,7 +148,7 @@ describe('creative catalog acceptance',()=>{
 
   const corrupt=new Uint8Array(packages.get(v2.manifest.package.url)!);corrupt[0]^=255;
   packages.set(v2.manifest.package.url,corrupt);
-  await expect(installer.repair('effect',v2.manifest.id,v2.manifest.version)).rejects.toThrow(/hash/i);
+  await expect(installer.repair('effect',v2.manifest.id,v2.manifest.version)).rejects.toThrow(/SHA-256 integrity/i);
   expect(await storage.getCurrentVersion('effect',v1.manifest.id)).toBe('1.1.0');
 
   packages.set(v2.manifest.package.url,v2.bytes);
