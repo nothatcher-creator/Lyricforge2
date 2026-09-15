@@ -65,8 +65,6 @@ export function filmBurnPlan(instanceId:string,timeMs:number,intensity:number,po
   return {position:clamp(position),spread:clamp(spread,.05,1),color,flicker:noise,opacity:clamp(intensity)*flickerFactor};
 }
 
-function quality(effect:ResolvedEffect):CreativeQuality{return effect.quality==='simplified'?'preview-low':'export';}
-
 const renderColorAdjust:EffectRenderHandler=(ctx,source,effect,env)=>{
   draw(ctx,source,env);
   try{
@@ -82,7 +80,7 @@ const renderTransformCrop:EffectRenderHandler=(ctx,source,effect,env)=>{
   ctx.save();ctx.beginPath();ctx.rect(geometry.crop.x,geometry.crop.y,geometry.crop.width,geometry.crop.height);ctx.clip();ctx.globalAlpha=geometry.opacity;ctx.translate(geometry.anchorX+geometry.translateX,geometry.anchorY+geometry.translateY);ctx.rotate(geometry.rotation);ctx.scale(geometry.scaleX,geometry.scaleY);ctx.translate(-geometry.anchorX,-geometry.anchorY);draw(ctx,source,env);ctx.restore();
 };
 
-const renderDirectionalBlur:EffectRenderHandler=(ctx,source,effect,env)=>{const plan=directionalBlurPlan(param(effect,'amount'),param(effect,'angle'),param(effect,'samples',10),quality(effect));ctx.save();for(const sample of plan.samples){ctx.globalAlpha=sample.alpha;ctx.drawImage(source,sample.offsetX,sample.offsetY,env.width,env.height);}ctx.restore();};
+const renderDirectionalBlur:EffectRenderHandler=(ctx,source,effect,env)=>{const plan=directionalBlurPlan(param(effect,'amount'),param(effect,'angle'),param(effect,'samples',10),env.quality);ctx.save();for(const sample of plan.samples){ctx.globalAlpha=sample.alpha;ctx.drawImage(source,sample.offsetX,sample.offsetY,env.width,env.height);}ctx.restore();};
 
 const renderLensDistortion:EffectRenderHandler=(ctx,source,effect,env)=>{
   const amount=param(effect,'amount'),cx=param(effect,'centerX',.5),cy=param(effect,'centerY',.5),grid=effect.quality==='simplified'?12:24,sw=env.width/grid,sh=env.height/grid;
@@ -95,7 +93,7 @@ const renderStrobe:EffectRenderHandler=(ctx,source,effect,env)=>{draw(ctx,source
 
 const renderLightLeak:EffectRenderHandler=(ctx,source,effect,env)=>{draw(ctx,source,env);const plan=lightLeakPlan(param(effect,'intensity',.5),param(effect,'position',.5),param(effect,'width',.35),param(effect,'angle'),textParam(effect,'color','#ff9a55'));if(!plan.intensity)return;const angle=plan.angle*Math.PI/180,cx=plan.position*env.width,cy=.5*env.height,len=Math.hypot(env.width,env.height),dx=Math.cos(angle)*len*.5,dy=Math.sin(angle)*len*.5,g=ctx.createLinearGradient(cx-dx,cy-dy,cx+dx,cy+dy),edge=clamp((1-plan.width)/2,0,.49);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(edge,'rgba(0,0,0,0)');g.addColorStop(.5,plan.color);g.addColorStop(1-edge,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.save();ctx.globalAlpha=plan.intensity;ctx.globalCompositeOperation='screen';ctx.fillStyle=g;ctx.fillRect(0,0,env.width,env.height);ctx.restore();};
 
-const renderZoomBlur:EffectRenderHandler=(ctx,source,effect,env)=>{const plan=zoomBlurPlan(param(effect,'amount'),param(effect,'centerX',.5),param(effect,'centerY',.5),param(effect,'samples',10),quality(effect)),cx=plan.centerX*env.width,cy=plan.centerY*env.height;ctx.save();for(const sample of plan.samples){ctx.save();ctx.globalAlpha=sample.alpha;ctx.translate(cx,cy);ctx.scale(sample.scale,sample.scale);ctx.translate(-cx,-cy);draw(ctx,source,env);ctx.restore();}ctx.restore();};
+const renderZoomBlur:EffectRenderHandler=(ctx,source,effect,env)=>{const plan=zoomBlurPlan(param(effect,'amount'),param(effect,'centerX',.5),param(effect,'centerY',.5),param(effect,'samples',10),env.quality),cx=plan.centerX*env.width,cy=plan.centerY*env.height;ctx.save();for(const sample of plan.samples){ctx.save();ctx.globalAlpha=sample.alpha;ctx.translate(cx,cy);ctx.scale(sample.scale,sample.scale);ctx.translate(-cx,-cy);draw(ctx,source,env);ctx.restore();}ctx.restore();};
 
 const renderUnsharpMask:EffectRenderHandler=(ctx,source,effect,env)=>{
   const amount=param(effect,'amount',.5),radius=param(effect,'radius',2)*(effect.quality==='simplified'?.5:1),threshold=param(effect,'threshold',.05);if(!env.pool){ctx.save();ctx.filter=`contrast(${1+amount*.2})`;draw(ctx,source,env);ctx.restore();return;}
