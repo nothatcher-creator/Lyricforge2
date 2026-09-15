@@ -1,7 +1,20 @@
 import {describe,expect,it} from 'vitest';
+import type {AudioAlignmentFeatures} from '../audio-alignment';
+import {ALIGNMENT_AUDIO_CONFIG} from '../audio-alignment';
 import {createProject,makeClip,type Word} from '../model';
 
 const recognized=(items:[string,number,number][]):Word[]=>items.map(([text,start,end])=>({text,start,end}));
+
+function audioFeatures(boundaries:number[],durationMs=2400):AudioAlignmentFeatures{
+  const frameMs=20;
+  const length=Math.ceil(durationMs/frameMs)+1;
+  const rms=new Float32Array(length),activity=new Float32Array(length),onset=new Float32Array(length);
+  for(const time of boundaries){
+    const index=Math.round(time/frameMs);
+    if(index>=0&&index<length){rms[index]=1;activity[index]=1;onset[index]=1;}
+  }
+  return {frameMs,rms,activity,onset,boundaries:[...boundaries]};
+}
 
 async function alignment(){return import('../lyric-alignment');}
 
@@ -45,6 +58,48 @@ describe('forced lyric alignment',()=>{
     expect(line.quality).not.toBe('uncertain');
   });
 
+  it('uses waveform evidence for a missed lyric word while keeping transcript anchors exact',async()=>{
+    const {alignLyricsToTranscript}=await alignment();
+    const result=alignLyricsToTranscript(
+      [{id:'l1',text:'hello brave new',start:0,end:1400,protected:false}],
+      recognized([['hello',100,260],['new',900,1080]]),
+      {start:0,end:1400},
+      {audioAware:true,audioFeatures:audioFeatures([620],1400)},
+    );
+    const line=result.lines[0];
+    expect(line.words.map(word=>word.text)).toEqual(['hello','brave','new']);
+    expect(line.words[0]).toMatchObject({start:100,end:260});
+    expect(line.words[2]).toMatchObject({start:900,end:1080});
+    expect(Math.abs(line.words[1].start-620)).toBeLessThanOrEqual(40);
+    expect(line.words[1].end).toBeLessThanOrEqual(900);
+    expect(line.reason).toBe('audio-assisted');
+  });
+
+  it('keeps transcript-only interpolation when audio-aware refinement is disabled',async()=>{
+    const {alignLyricsToTranscript}=await alignment();
+    const result=alignLyricsToTranscript(
+      [{id:'l1',text:'hello brave new',start:0,end:1400,protected:false}],
+      recognized([['hello',100,260],['new',900,1080]]),
+      {start:0,end:1400},
+      {audioAware:false,audioFeatures:audioFeatures([620],1400)},
+    );
+    expect(result.lines[0].words[1]).toMatchObject({start:260,end:900});
+  });
+
+  it('limits weak line-edge snapping to the configured radius and selection bounds',async()=>{
+    const {alignLyricsToTranscript}=await alignment();
+    const result=alignLyricsToTranscript(
+      [{id:'l1',text:'missing hello',start:300,end:1000,protected:false}],
+      recognized([['hello',700,880]]),
+      {start:200,end:1100},
+      {audioAware:true,audioFeatures:audioFeatures([120,160,480],1200)},
+    );
+    const line=result.lines[0];
+    expect(line.start).toBeGreaterThanOrEqual(200);
+    expect(Math.abs(line.start-300)).toBeLessThanOrEqual(ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs);
+    expect(line.words[0].end).toBeLessThanOrEqual(line.words[1].start);
+  });
+
   it('marks a completely unmatched lyric line uncertain while preserving its text',async()=>{
     const {alignLyricsToTranscript}=await alignment();
     const original='Xylophones orbit quietly';
@@ -68,12 +123,13 @@ describe('forced lyric alignment',()=>{
     ];
     const result=alignLyricsToTranscript(lines,recognized([
       ['first',200,450],['line',500,750],['middle',2000,2300],['anchor',2350,2700],['last',3400,3650],['line',3700,4000],
-    ]),{start:0,end:5000});
+    ]),{start:0,end:5000},{audioAware:true,audioFeatures:audioFeatures([900,1800,3100,4200],5000)});
     const middle=result.lines.find(line=>line.clipId==='b')!;
     expect(middle.start).toBe(2000);
     expect(middle.end).toBe(2800);
     expect(middle.words).toEqual(protectedWords);
     expect(middle.protected).toBe(true);
+    expect(middle.reason).toBe('protected-anchor');
     expect(result.lines.find(line=>line.clipId==='a')!.end).toBeLessThanOrEqual(2000);
     expect(result.lines.find(line=>line.clipId==='c')!.start).toBeGreaterThanOrEqual(2800);
   });
