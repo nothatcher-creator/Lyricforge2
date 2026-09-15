@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {creativeRegistry} from '../creative-registry';
+import {CreativeRegistry,creativeRegistry} from '../creative-registry';
 
 describe('creative registry',()=>{
   it('resolves exact versions and refuses undeclared substitutions',()=>{
@@ -19,5 +19,13 @@ describe('creative registry',()=>{
     expect(creativeRegistry.normalizeParams(transition,{direction:'diagonal'}).direction).toBe('left');
     const shadow=creativeRegistry.resolve('effect','builtin.effect.drop-shadow','1.0.0')!;
     expect(creativeRegistry.normalizeParams(shadow,{color:'javascript:bad'}).color).toBe('#000000');
+  });
+
+  it('allows installed effects to reuse a trusted built-in runtime but rejects invented runtimes',()=>{
+    const trusted=creativeRegistry.resolve('effect','builtin.effect.color-adjust','1.0.0')!;
+    const registry=new CreativeRegistry([trusted]);
+    registry.replaceInstalled([{...trusted,id:'catalog.effect.film-grade',version:'1.1.0',name:'Film Grade'}]);
+    expect(registry.resolve('effect','catalog.effect.film-grade','1.1.0')?.runtime).toBe('effect.color-adjust');
+    expect(()=>registry.replaceInstalled([{...trusted,id:'catalog.effect.external-shader',version:'1.0.0',name:'External Shader',runtime:'effect.external-shader'}])).toThrow('untrusted runtime');
   });
 });
