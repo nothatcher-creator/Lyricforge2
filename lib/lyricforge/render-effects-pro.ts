@@ -10,9 +10,9 @@ const draw=(ctx:CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D,sourc
 export interface ColorAdjustValues{exposure:number;temperature:number;tint:number;highlights:number;shadows:number;whites:number;blacks:number;gamma:number;saturation:number;fade:number}
 export function applyColorAdjustPixel(rgba:[number,number,number,number],values:ColorAdjustValues):[number,number,number,number]{
   let [r,g,b,a]=rgba;
-  const exposure=2**values.exposure;r*=exposure;g*=exposure;b*=exposure;
   const temperature=values.temperature/100*60;r+=temperature;b-=temperature;
   const tint=values.tint/100*24;r+=tint*.55;g-=tint;b+=tint*.55;
+  const exposure=2**values.exposure;r*=exposure;g*=exposure;b*=exposure;
   let luminance=(r*.2126+g*.7152+b*.0722)/255;
   const shadows=(1-clamp(luminance*2))*values.shadows/100*70;
   const highlights=clamp((luminance-.5)*2)*values.highlights/100*70;
