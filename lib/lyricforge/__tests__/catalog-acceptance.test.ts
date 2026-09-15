@@ -112,7 +112,7 @@ describe('creative catalog acceptance',()=>{
   const packages=packageMap(fixtures);
   const storage=createMemoryCatalogStorage();
   const service=new CatalogService({storage,appVersion:APP_VERSION,builtins:[],fetchIndex:async()=>index});
-  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
+  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,isTrustedRuntime:(type,runtimeId)=>isTrustedRuntime(runtimeId),fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
   await service.load();
   for(const fixture of fixtures)await installer.install(fixture.manifest);
   await service.refreshLocalState();
@@ -141,7 +141,7 @@ describe('creative catalog acceptance',()=>{
   const index=indexFor([v1,v2]);
   const packages=packageMap([v1,v2]);
   const storage=createMemoryCatalogStorage();
-  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
+  const installer=new CatalogInstaller({storage,appVersion:APP_VERSION,isTrustedRuntime:(type,runtimeId)=>isTrustedRuntime(runtimeId),fetchBytes:async url=>packages.get(url)??Promise.reject(new Error(`Missing package ${url}`))});
   await installer.install(v1.manifest);
   await installer.install(v2.manifest);
   expect(await storage.getCurrentVersion('effect',v1.manifest.id)).toBe('1.1.0');
