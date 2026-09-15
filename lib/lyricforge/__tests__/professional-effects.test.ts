@@ -1,6 +1,7 @@
 import {describe,expect,it} from 'vitest';
+import type {ResolvedEffect} from '../effect-runtime';
 import {creativeRegistry} from '../creative-registry';
-import {EFFECT_HANDLERS} from '../render-effects';
+import {EFFECT_HANDLERS,renderEffect} from '../render-effects';
 import {
   applyColorAdjustPixel,
   directionalBlurPlan,
@@ -47,6 +48,14 @@ describe('professional single-frame effects',()=>{
     expect(zoomBlurPlan(.6,.5,.5,20,'preview-low').samples).toHaveLength(4);
     expect(zoomBlurPlan(.6,.5,.5,20,'preview-high').samples).toHaveLength(10);
     expect(zoomBlurPlan(.6,.5,.5,20,'export').samples).toHaveLength(20);
+  });
+
+  it('uses the actual preview mode when a full-quality resolved effect still has a high-preview sample cap',()=>{
+    let draws=0;
+    const ctx={save(){},restore(){},drawImage(){draws++;},globalAlpha:1} as unknown as CanvasRenderingContext2D;
+    const effect:ResolvedEffect={instanceId:'directional-high',assetId:'builtin.effect.directional-blur',version:'1.0.0',runtime:'effect.directional-blur',params:{amount:30,angle:45,samples:20},quality:'full',scope:'clip',audioReactive:0};
+    renderEffect(ctx,{} as CanvasImageSource,effect,{width:1920,height:1080,frameIndex:0,timeMs:0,quality:'preview-high'} as never);
+    expect(draws).toBe(12);
   });
 
   it('computes deterministic lens distortion around the requested center',()=>{
