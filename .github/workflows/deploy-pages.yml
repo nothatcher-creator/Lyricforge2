@@ -29,6 +29,8 @@ jobs:
         run: pnpm test -- --run
       - name: Run legacy regression tests
         run: pnpm run test:legacy
+      - name: Run TypeScript typecheck
+        run: pnpm run typecheck
       - name: Build official creative catalog
         run: pnpm run catalog:build
       - name: Validate official creative catalog
