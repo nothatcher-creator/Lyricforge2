@@ -24,6 +24,25 @@ function effectManifest(){
  };
 }
 
+function elementManifest(){
+ return {
+  schemaVersion:1 as const,
+  id:'catalog.element.glow-ring',
+  version:'1.0.0',
+  type:'element' as const,
+  name:'Glow Ring',
+  description:'Reusable SVG glow ring overlay',
+  author:'LyricForge',
+  sourceUrl:'https://github.com/nothatcher-creator/Lyricforge2',
+  license:'CC0-1.0',
+  tags:['overlay','glow','ring'],
+  minAppVersion:'0.1.0',
+  preview:{kind:'image' as const,url:'preview.svg'},
+  package:{url:'catalog.element.glow-ring-1.0.0.lyricforge-asset',size:2048,sha256:packageHash},
+  element:{file:'glow-ring.svg',mime:'image/svg+xml' as const,width:1080,height:1080,defaultDurationMs:5000,defaultFit:'contain' as const},
+ };
+}
+
 describe('catalog validation',()=>{
  it('accepts a trusted declarative effect manifest shape',()=>{
   const manifest=validateCatalogAssetManifest(effectManifest());
@@ -50,6 +69,48 @@ describe('catalog validation',()=>{
  it('rejects blank providers and non-HTTPS source item URLs',()=>{
   expect(()=>validateCatalogAssetManifest({...effectManifest(),source:{provider:'',itemUrl:'https://example.com/item'}})).toThrow(/provider/i);
   expect(()=>validateCatalogAssetManifest({...effectManifest(),source:{provider:'Example',itemUrl:'http://example.com/item'}})).toThrow(/https/i);
+ });
+
+ it('accepts non-executable SVG and PNG element manifests',()=>{
+  const remote=validateCatalogAssetManifest(elementManifest());
+  expect((remote as any).element).toMatchObject({file:'glow-ring.svg',mime:'image/svg+xml',defaultFit:'contain'});
+  const embedded=validateEmbeddedAssetManifest({
+   schemaVersion:1,
+   id:'catalog.element.glow-ring',
+   version:'1.0.0',
+   type:'element',
+   element:{file:'glow-ring.svg',mime:'image/svg+xml',width:1080,height:1080,defaultDurationMs:5000,defaultFit:'contain'},
+   files:[{path:'glow-ring.svg',mime:'image/svg+xml',sha256:packageHash,size:400}],
+  });
+  expect((embedded as any).element.file).toBe('glow-ring.svg');
+ });
+
+ it('requires element metadata and forbids runtime ids on elements',()=>{
+  const {element,...missingElement}=elementManifest();
+  expect(()=>validateCatalogAssetManifest(missingElement)).toThrow(/element/i);
+  expect(()=>validateCatalogAssetManifest({...elementManifest(),runtimeId:'effect.glow'})).toThrow(/runtime/i);
+ });
+
+ it('requires the declared element payload path and MIME to match',()=>{
+  expect(()=>validateEmbeddedAssetManifest({
+   schemaVersion:1,
+   id:'catalog.element.mismatch',
+   version:'1.0.0',
+   type:'element',
+   element:{file:'overlay.svg',mime:'image/svg+xml'},
+   files:[{path:'overlay.png',mime:'image/png',sha256:packageHash,size:400}],
+  })).toThrow(/element|payload|file/i);
+ });
+
+ it('rejects executable-looking paths in element packages even when mislabeled as images',()=>{
+  expect(()=>validateEmbeddedAssetManifest({
+   schemaVersion:1,
+   id:'catalog.element.bad',
+   version:'1.0.0',
+   type:'element',
+   element:{file:'overlay.html',mime:'image/svg+xml'},
+   files:[{path:'overlay.html',mime:'image/svg+xml',sha256:packageHash,size:400}],
+  })).toThrow(/element|executable|path/i);
  });
 
  it('rejects executable payload declarations in embedded packages',()=>{
