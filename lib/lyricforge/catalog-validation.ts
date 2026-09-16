@@ -13,6 +13,13 @@ const safeRelativeOrHttpsUrl=z.string().min(1).max(2048).refine(value=>{
  try{const url=new URL(value);return url.protocol==='https:'||url.protocol==='http:';}catch{return !value.includes('://');}
 },'Invalid URL');
 const httpsUrl=z.string().url().refine(value=>new URL(value).protocol==='https:','URL must use HTTPS');
+const EXECUTABLE_ELEMENT_PATH=/\.(?:[cm]?js|html?|xhtml)$/i;
+
+function isSafeElementPath(value:string){
+ if(!value||value.startsWith('/')||value.includes('\\')||EXECUTABLE_ELEMENT_PATH.test(value))return false;
+ const parts=value.split('/');
+ return !parts.some(part=>!part||part==='.'||part==='..');
+}
 
 const packageRef=z.object({
  url:safeRelativeOrHttpsUrl,
@@ -30,6 +37,18 @@ const fontDescriptor=z.object({
  style:z.enum(['normal','italic']),
  weight:z.number().int().min(100).max(900),
 }).strict();
+
+const elementDescriptor=z.object({
+ file:z.string().min(1).max(512).refine(isSafeElementPath,'Element file path must be a safe non-executable asset'),
+ mime:z.enum(['image/svg+xml','image/png']),
+ width:z.number().int().min(1).max(16384).optional(),
+ height:z.number().int().min(1).max(16384).optional(),
+ defaultDurationMs:z.number().int().min(1).max(86400000).optional(),
+ defaultFit:z.enum(['contain','cover']).optional(),
+}).strict().superRefine((value,ctx)=>{
+ const expected=value.mime==='image/svg+xml'?'.svg':'.png';
+ if(!value.file.toLowerCase().endsWith(expected))ctx.addIssue({code:z.ZodIssueCode.custom,path:['file'],message:`Element ${value.mime} payload must use ${expected}`});
+});
 
 const sourceDescriptor=z.object({
  provider:z.string().trim().min(1).max(160),
@@ -59,13 +78,20 @@ const catalogAssetManifestSchema=z.object({
  preview:previewRef,
  package:packageRef,
  font:fontDescriptor.optional(),
+ element:elementDescriptor.optional(),
  changelog:z.string().max(8000).optional(),
 }).strict().superRefine((value,ctx)=>{
  if(value.type==='font'){
   if(!value.font)ctx.addIssue({code:z.ZodIssueCode.custom,path:['font'],message:'Font metadata is required'});
   if(value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Fonts cannot declare a runtime'});
- }else if(!value.runtimeId){
-  ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Creative assets require a trusted runtime id'});
+  if(value.element)ctx.addIssue({code:z.ZodIssueCode.custom,path:['element'],message:'Fonts cannot declare element metadata'});
+ }else if(value.type==='element'){
+  if(!value.element)ctx.addIssue({code:z.ZodIssueCode.custom,path:['element'],message:'Element metadata is required'});
+  if(value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Elements cannot declare a runtime'});
+  if(value.font)ctx.addIssue({code:z.ZodIssueCode.custom,path:['font'],message:'Elements cannot declare font metadata'});
+ }else{
+  if(!value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Creative assets require a trusted runtime id'});
+  if(value.element)ctx.addIssue({code:z.ZodIssueCode.custom,path:['element'],message:'Only element assets may declare element metadata'});
  }
  if(value.maxAppVersion){
   try{if(parseSemVer(value.maxAppVersion)&&parseSemVer(value.minAppVersion)){
@@ -91,10 +117,28 @@ const embeddedSchema=z.object({
  runtimeId:z.string().min(1).max(160).optional(),
  preset:z.record(paramValue).optional(),
  font:fontDescriptor.optional(),
+ element:elementDescriptor.optional(),
  files:z.array(embeddedFileSchema).max(256),
 }).strict().superRefine((value,ctx)=>{
- if(value.type==='font'&&!value.font)ctx.addIssue({code:z.ZodIssueCode.custom,path:['font'],message:'Font metadata is required'});
- if(value.type!=='font'&&!value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Creative assets require a trusted runtime id'});
+ if(value.type==='font'){
+  if(!value.font)ctx.addIssue({code:z.ZodIssueCode.custom,path:['font'],message:'Font metadata is required'});
+  if(value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Fonts cannot declare a runtime'});
+ }else if(value.type==='element'){
+  if(!value.element)ctx.addIssue({code:z.ZodIssueCode.custom,path:['element'],message:'Element metadata is required'});
+  if(value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Elements cannot declare a runtime'});
+  if(value.font)ctx.addIssue({code:z.ZodIssueCode.custom,path:['font'],message:'Elements cannot declare font metadata'});
+  if(value.element){
+   const matches=value.files.filter(file=>file.path===value.element!.file);
+   if(matches.length!==1)ctx.addIssue({code:z.ZodIssueCode.custom,path:['files'],message:'Element package must contain exactly one declared element payload file'});
+   else if(matches[0].mime!==value.element.mime)ctx.addIssue({code:z.ZodIssueCode.custom,path:['files'],message:'Element payload MIME must match element metadata'});
+  }
+  for(const file of value.files){
+   if(EXECUTABLE_ELEMENT_PATH.test(file.path))ctx.addIssue({code:z.ZodIssueCode.custom,path:['files'],message:'Element packages cannot contain executable-looking file paths'});
+  }
+ }else{
+  if(!value.runtimeId)ctx.addIssue({code:z.ZodIssueCode.custom,path:['runtimeId'],message:'Creative assets require a trusted runtime id'});
+  if(value.element)ctx.addIssue({code:z.ZodIssueCode.custom,path:['element'],message:'Only element assets may declare element metadata'});
+ }
 });
 
 const ALLOWED_EMBEDDED_MIME=new Set([
