@@ -44,7 +44,7 @@ export interface LyricAlignmentOptions{
   audioAware?:boolean;
 }
 
-export const ALIGNMENT_CONFIDENCE_WEIGHTS={text:.65,audio:.25,continuity:.10} as const;
+export const ALIGNMENT_CONFIDENCE_WEIGHTS={text:.50,audio:.35,continuity:.15} as const;
 
 const CONTRACTIONS:Record<string,string[]>= {
   im:['i am'],ive:['i have'],ill:['i will'],id:['i would','i had'],
@@ -184,6 +184,7 @@ function refineWithAudio(
   const words=baseWords.map(word=>({...word}));
   const supported=new Set<number>();
   const lineById=new Map(lines.map(line=>[line.id,line]));
+  const anchoredLines=new Set([...anchors.keys()].map(index=>tokens[index].lineId));
   let cursor=0;
   while(cursor<tokens.length){
     if(anchors.has(cursor)){cursor++;continue;}
@@ -213,7 +214,7 @@ function refineWithAudio(
       let time=candidates[j].time;
       const token=tokens[tokenIndex];
       const sourceLine=lineById.get(token.lineId);
-      if(token.wordIndex===0&&sourceLine){
+      if(token.wordIndex===0&&sourceLine&&anchoredLines.has(token.lineId)){
         const edge=findSupportedBoundary(features,sourceLine.start,ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs);
         if(!edge)continue;
         time=edge.time;
@@ -323,6 +324,18 @@ export function alignLyricsToTranscript(lines:readonly AlignmentInputLine[],reco
     check:ordered.filter(line=>line.quality==='check').length,
     uncertain:ordered.filter(line=>line.quality==='uncertain').length,
   };
+}
+
+export function alignmentTargetClipIds(project:Project,selectedIds:readonly string[],explicitIds?:readonly string[]):string[]{
+  const lyrics=project.clips
+    .filter(clip=>clip.kind==='lyrics'&&!project.tracks.find(track=>track.id===clip.trackId)?.locked)
+    .sort((a,b)=>a.start-b.start||a.end-b.end);
+  const editableIds=new Set(lyrics.map(clip=>clip.id));
+  if(explicitIds?.length)return explicitIds.filter(id=>editableIds.has(id));
+  const selected=lyrics.filter(clip=>selectedIds.includes(clip.id));
+  if(!selected.length)return lyrics.map(clip=>clip.id);
+  if(selected.every(clip=>clip.timingSource==='manual'))return lyrics.map(clip=>clip.id);
+  return selected.map(clip=>clip.id);
 }
 
 export function alignmentBoundsForSelection(project:Project,clipIds:readonly string[]):{start:number;end:number}{
