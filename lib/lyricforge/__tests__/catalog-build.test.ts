@@ -1,4 +1,4 @@
-import {readFileSync,readdirSync,statSync} from 'node:fs';
+import {existsSync,readFileSync,readdirSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe,expect,it} from 'vitest';
 import {strFromU8,unzipSync} from 'fflate';
@@ -7,6 +7,7 @@ import {buildAssetPackage,stableJson,sortCatalogItems,assertTrustedCatalogSource
 const encoder=new TextEncoder();
 
 function countCatalogSources(root:string):number{
+ if(!existsSync(root))return 0;
  return readdirSync(root).reduce((count,name)=>{
   const path=join(root,name);
   const stat=statSync(path);
@@ -16,6 +17,7 @@ function countCatalogSources(root:string):number{
 }
 
 function readCatalogSources(root:string):Record<string,any>[] {
+ if(!existsSync(root))return [];
  return readdirSync(root).flatMap(name=>{
   const path=join(root,name);
   const stat=statSync(path);
@@ -61,6 +63,16 @@ describe('official catalog builder',()=>{
   for(const type of ['font','effect','transition','text-animation']){
    expect(countCatalogSources(join('public','catalog','assets',type)),type).toBeGreaterThanOrEqual(12);
   }
+ });
+
+ it('ships a substantial lyric-video Element library',()=>{
+  const root=join('public','catalog','assets');
+  const elementRoot=join(root,'element');
+  const elements=readCatalogSources(elementRoot);
+  const originals=elements.filter(source=>source.type==='element'&&source.author==='LyricForge'&&typeof source.sourceUrl==='string'&&source.sourceUrl.startsWith('https://github.com/nothatcher-creator/Lyricforge2'));
+  expect(elements.length,'element catalog size').toBeGreaterThanOrEqual(24);
+  expect(originals.length,'original LyricForge elements').toBeGreaterThanOrEqual(12);
+  expect(readCatalogSources(root).length,'total official catalog size').toBeGreaterThanOrEqual(72);
  });
 
  it('enforces catalog-wide identity, provenance, license, and provider quality',()=>{
