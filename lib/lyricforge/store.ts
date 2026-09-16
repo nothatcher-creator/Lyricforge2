@@ -1,11 +1,24 @@
 'use client';
 import {useSyncExternalStore} from 'react';
-import {demoProject, type Project, type Clip, retime, uid, makeClip, makeTrack, lyricClips, splitClip, mergeClips} from './model';
+import {demoProject, type Project, type Clip, type Asset, retime, uid, makeClip, makeTrack, lyricClips, splitClip, mergeClips} from './model';
 import type {LyricAlignmentResult} from './lyric-alignment';
-import type {AnimationInstance,AnimationRole,EffectInstance,TransitionInstance} from './creative-assets';
+import type {AnimationInstance,AnimationRole,EffectInstance,ProjectDependency,TransitionInstance} from './creative-assets';
+import {assets} from './assets';
 import {creativeRegistry,type CreativeTarget} from './creative-registry';
 import {isValidTransitionPair} from './transition-runtime';
 import {History} from './history';
+
+export interface AddCatalogElementInput{
+ dependency:ProjectDependency;
+ name:string;
+ bytes:Uint8Array;
+ mime:'image/svg+xml'|'image/png';
+ time:number;
+ durationMs:number;
+ fit:'contain'|'cover';
+}
+
+const sameDependency=(left:ProjectDependency|undefined,right:ProjectDependency)=>!!left&&left.type===right.type&&left.id===right.id&&left.version===right.version&&left.sourceCatalogId===right.sourceCatalogId;
 
 export class EditorStore {
  project:Project;
@@ -61,6 +74,40 @@ export class EditorStore {
   },'lyric-alignment');
  }
  add(kind:Clip['kind'],time:number,text=''){let track=this.project.tracks.find(t=>t.kind===kind&&!t.locked);if(kind!=='lyrics'&&kind!=='audio')track=undefined;const tr=track||makeTrack(kind,kind==='text'?'Text layer':kind==='visualizer'?'Visualizer':kind);const c=makeClip(kind,tr.id,time,Math.min(Math.max(time+4000,this.project.duration),time+(kind==='text'||kind==='lyrics'?4000:this.project.duration)),text);if(kind==='text')c.style={size:48,y:.25,karaoke:'Off'};if(kind==='visualizer'){c.visualizer='Bars';c.style={y:.8,scale:.7};}this.update(p=>({...p,duration:Math.max(p.duration,c.end),tracks:track?p.tracks:[tr,...p.tracks],clips:[...p.clips,c]}));this.select([c.id]);return c;}
+
+ async addCatalogElement(input:AddCatalogElementInput):Promise<Clip>{
+  if(input.dependency.type!=='element')throw new Error('Catalog element insertion requires an element dependency');
+  const start=Math.max(0,Math.round(input.time));
+  const duration=Math.max(10,Math.round(input.durationMs));
+  const dependency=structuredClone(input.dependency);
+  let asset=this.project.assets.find(item=>item.type==='image'&&sameDependency(item.catalogDependency,dependency));
+  let created=false;
+  if(!asset){
+   asset={id:uid(),name:input.name,type:'image',mime:input.mime,size:input.bytes.byteLength,catalogDependency:dependency};
+   created=true;
+  }
+  if(!assets.blobs.has(asset.id))await assets.load(asset,new Blob([Uint8Array.from(input.bytes) as BlobPart],{type:input.mime}));
+
+  let track=this.project.tracks.find(item=>(item.kind==='image'||item.kind==='video')&&!item.locked);
+  const createdTrack=!track;
+  if(!track)track=makeTrack('image','Elements');
+  const clip=makeClip('image',track.id,start,start+duration);
+  clip.assetId=asset.id;
+  clip.name=input.name;
+  clip.fit=input.fit;
+  const hasDependency=this.project.dependencies.some(item=>sameDependency(item,dependency));
+  const insertedAsset:Asset=asset;
+  this.update(project=>({
+   ...project,
+   duration:Math.max(project.duration,clip.end),
+   tracks:createdTrack?[track!,...project.tracks]:project.tracks,
+   assets:created?[...project.assets,insertedAsset]:project.assets,
+   clips:[...project.clips,clip],
+   dependencies:hasDependency?project.dependencies:[...project.dependencies,dependency],
+  }),'catalog-element');
+  this.select([clip.id]);
+  return clip;
+ }
 
  setAnimation(clipId:string,role:AnimationRole,instance:AnimationInstance|null){
   const clip=this.project.clips.find(c=>c.id===clipId);

@@ -24,15 +24,19 @@ export function collectProjectCatalogDependencies(project:Project,installed:read
  const prior=priorSourceByKey(project);
  const refs=new Map<string,ProjectDependency>();
 
- const add=(type:CreativeAssetType,id:string,version:string)=>{
+ const add=(type:CreativeAssetType,id:string,version:string,explicitSourceCatalogId?:string)=>{
   if(!id||!version||isBuiltin(id))return;
   const key=refKey(type,id,version);
   if(refs.has(key))return;
   const versionRecord=versions.get(key);
-  const sourceCatalogId=versionRecord?.catalogId??prior.get(key);
+  const sourceCatalogId=versionRecord?.catalogId??explicitSourceCatalogId??prior.get(key);
   refs.set(key,{id,type,version,...(sourceCatalogId?{sourceCatalogId}:{})});
  };
 
+ for(const asset of project.assets){
+  const dependency=asset.catalogDependency;
+  if(dependency?.type==='element')add('element',dependency.id,dependency.version,dependency.sourceCatalogId);
+ }
  for(const clip of project.clips){
   if(clip.animations){
    for(const role of ['intro','loop','outro'] as const){

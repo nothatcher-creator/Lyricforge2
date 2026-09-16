@@ -25,7 +25,7 @@ export interface Clip {
   visualizer?:'Bars'|'Spectrum'|'Waveform'|'Circle'|'Particles'|'Glow'|'Beat flash'; sensitivity:number; smoothing:number;
 }
 export interface Track { id:string; name:string; kind:Kind; visible:boolean; locked:boolean; mute:boolean; solo:boolean; opacity:number; }
-export interface Asset { id:string; name:string; type:'audio'|'image'|'video'|'font'; mime:string; size:number; duration?:number; fontFamily?:string; }
+export interface Asset { id:string; name:string; type:'audio'|'image'|'video'|'font'; mime:string; size:number; duration?:number; fontFamily?:string; catalogDependency?:ProjectDependency; }
 export interface Project {
   version:1; schemaVersion:number; id:string; name:string; createdAt:number; updatedAt:number; width:number; height:number; fps:number; duration:number;
   tracks:Track[]; clips:Clip[]; assets:Asset[]; lyricStyle:Style;
