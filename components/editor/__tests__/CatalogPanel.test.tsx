@@ -92,6 +92,17 @@ describe('CatalogPanel',()=>{
   expect(installer.install).toHaveBeenCalledWith(latest);
  });
 
+ it('opens item details when the large catalog preview is tapped',async()=>{
+  const user=userEvent.setup();
+  const {service,installer}=await fixture(false);
+  render(<CatalogPanel service={service} installer={installer} mobile/>);
+  await user.click(screen.getByRole('tab',{name:'Effects'}));
+  await user.click(screen.getByRole('button',{name:'Online'}));
+  await user.click(screen.getByRole('button',{name:'Open details for Neon Pulse'}));
+  expect(screen.getByRole('heading',{name:'Neon Pulse'})).toBeTruthy();
+  expect(screen.getByRole('button',{name:'Close catalog details'})).toBeTruthy();
+ });
+
  it('shows source provider chips and filters a multi-provider category',async()=>{
   const user=userEvent.setup();
   const {service,installer}=await fixture(false,true);
