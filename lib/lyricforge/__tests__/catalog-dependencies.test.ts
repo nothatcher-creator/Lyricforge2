@@ -1,12 +1,13 @@
 import {describe,expect,it} from 'vitest';
 import type {InstalledAssetVersion} from '../catalog-types';
+import type {ProjectDependency} from '../creative-assets';
 import {collectProjectCatalogDependencies,resolveProjectDependencies} from '../catalog-dependencies';
 import {createProject,makeClip} from '../model';
 
 function installed(type:InstalledAssetVersion['type'],id:string,version:string):InstalledAssetVersion{
  return {
   type,id,version,catalogId:'official',installedAt:1,packageCacheKey:`package:${type}:${id}@${version}`,
-  manifest:{schemaVersion:1,type,id,version,name:id,description:id,author:'LyricForge',sourceUrl:'https://github.com/nothatcher-creator/Lyricforge2',license:'CC0-1.0',tags:[],minAppVersion:'0.1.0',...(type==='font'?{font:{family:'Bebas Neue',style:'normal' as const,weight:400}}:{runtimeId:type==='effect'?'effect.glow':type==='transition'?'transition.glitch':'animation.slide'}),preview:{kind:'image',url:'preview.svg'},package:{url:'asset.lyricforge-asset',size:1,sha256:'a'.repeat(64)}},
+  manifest:{schemaVersion:1,type,id,version,name:id,description:id,author:'LyricForge',sourceUrl:'https://github.com/nothatcher-creator/Lyricforge2',license:'CC0-1.0',tags:[],minAppVersion:'0.1.0',...(type==='font'?{font:{family:'Bebas Neue',style:'normal' as const,weight:400}}:type==='element'?{element:{file:'element.svg',mime:'image/svg+xml' as const}}:{runtimeId:type==='effect'?'effect.glow':type==='transition'?'transition.glitch':'animation.slide'}),preview:{kind:'image',url:'preview.svg'},package:{url:'asset.lyricforge-asset',size:1,sha256:'a'.repeat(64)}},
  };
 }
 
@@ -61,5 +62,16 @@ describe('project catalog dependencies',()=>{
   expect(effect?.installed?.version).toBe('1.0.0');
   const animation=resolutions.find(item=>item.dependency.type==='text-animation');
   expect(animation?.status).toBe('missing');
+ });
+
+ it('collects exact element dependencies from image asset provenance and reports missing versions',()=>{
+  const project=createProject('Element deps');
+  const dependency:ProjectDependency={id:'catalog.element.glow-ring',type:'element',version:'1.0.0',sourceCatalogId:'official'};
+  project.assets=[{id:'element-image',name:'Glow Ring',type:'image',mime:'image/svg+xml',size:123,catalogDependency:dependency} as any];
+  project.dependencies=[dependency];
+  expect(collectProjectCatalogDependencies(project,[])).toEqual([dependency]);
+  expect(resolveProjectDependencies(project,[])).toEqual([{dependency,status:'missing'}]);
+  const current=installed('element',dependency.id,dependency.version);
+  expect(resolveProjectDependencies(project,[current])[0]).toMatchObject({dependency,status:'installed',installed:{type:'element',version:'1.0.0'}});
  });
 });

@@ -1,6 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {strToU8,zipSync} from 'fflate';
 import type {CatalogAssetManifest,EmbeddedAssetManifest,InstalledAssetVersion} from '../catalog-types';
+import type {ProjectDependency} from '../creative-assets';
 import {sha256Hex} from '../catalog-package';
 import {bundleCatalogDependencies,restoreBundledCatalogDependencies} from '../catalog-bundle';
 import {createMemoryCatalogStorage} from '../catalog-storage';
@@ -15,6 +16,15 @@ async function effectPackage(version:string){
  return {bytes,manifest};
 }
 
+async function elementPackage(version='1.0.0'){
+ const svg=strToU8('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>');
+ const element={file:'glow-ring.svg',mime:'image/svg+xml' as const,width:100,height:100,defaultDurationMs:5000,defaultFit:'contain' as const};
+ const embedded:EmbeddedAssetManifest={schemaVersion:1,id:'catalog.element.glow-ring',version,type:'element',element,files:[{path:element.file,mime:element.mime,size:svg.byteLength,sha256:await sha256Hex(svg)}]};
+ const bytes=zipSync({'manifest.json':strToU8(JSON.stringify(embedded)),[element.file]:svg},{level:0});
+ const manifest:CatalogAssetManifest={schemaVersion:1,id:embedded.id,version,type:'element',name:'Glow Ring',description:'SVG glow ring',author:'LyricForge',sourceUrl:'https://github.com/nothatcher-creator/Lyricforge2',license:'CC0-1.0',tags:['overlay'],minAppVersion:'0.1.0',element,preview:{kind:'image',url:'preview.svg'},package:{url:`https://example.test/${version}.lyricforge-asset`,size:bytes.byteLength,sha256:await sha256Hex(bytes)}};
+ return {bytes,manifest};
+}
+
 async function seed(storage:ReturnType<typeof createMemoryCatalogStorage>,version:string){
  const {bytes,manifest}=await effectPackage(version);
  const record:InstalledAssetVersion={id:manifest.id,type:'effect',version,catalogId:'official',installedAt:1,manifest,packageCacheKey:`package:effect:${manifest.id}@${version}`};
@@ -23,9 +33,25 @@ async function seed(storage:ReturnType<typeof createMemoryCatalogStorage>,versio
  return record;
 }
 
+async function seedElement(storage:ReturnType<typeof createMemoryCatalogStorage>,version='1.0.0'){
+ const {bytes,manifest}=await elementPackage(version);
+ const record:InstalledAssetVersion={id:manifest.id,type:'element',version,catalogId:'official',installedAt:1,manifest,packageCacheKey:`package:element:${manifest.id}@${version}`};
+ await storage.putVersion(record);
+ await storage.putCachedBytes(record.packageCacheKey,bytes,'application/vnd.lyricforge.asset+zip');
+ return record;
+}
+
 function projectAt(version:string){
  const project=createProject('Portable catalog project');
  project.masterEffects=[{id:'master',assetId:'catalog.effect.neon-pulse',version,enabled:true,params:{radius:28,intensity:.8},keyframes:{}}];
+ return project;
+}
+
+function elementProject(version='1.0.0'){
+ const project=createProject('Portable element project');
+ const dependency:ProjectDependency={id:'catalog.element.glow-ring',type:'element',version,sourceCatalogId:'official'};
+ project.assets=[{id:'element-image',name:'Glow Ring',type:'image',mime:'image/svg+xml',size:100,catalogDependency:dependency} as any];
+ project.dependencies=[dependency];
  return project;
 }
 
@@ -42,6 +68,22 @@ describe('catalog dependency bundles',()=>{
   expect(result.project.dependencies).toEqual([{id:record.id,type:'effect',version:'1.0.0',sourceCatalogId:'official'}]);
   expect(result.entries[`catalog/effect/${record.id}/1.0.0/asset.lyricforge-asset`]).toBeDefined();
   expect(result.entries[`catalog/effect/${record.id}/1.0.0/manifest.json`]).toBeDefined();
+ });
+
+ it('bundles and restores an exact non-executable element dependency from image asset provenance',async()=>{
+  const source=createMemoryCatalogStorage();
+  const record=await seedElement(source);
+  const bundle=await bundleCatalogDependencies(elementProject(),source);
+  const dependency={id:record.id,type:'element' as const,version:'1.0.0',sourceCatalogId:'official'};
+  expect(bundle.project.dependencies).toEqual([dependency]);
+  expect(bundle.entries[`catalog/element/${record.id}/1.0.0/asset.lyricforge-asset`]).toBeDefined();
+  expect(bundle.entries[`catalog/element/${record.id}/1.0.0/manifest.json`]).toBeDefined();
+
+  const target=createMemoryCatalogStorage();
+  const restored=await restoreBundledCatalogDependencies(bundle.project,bundle.entries,target,{appVersion:'0.1.0',isTrustedRuntime:()=>false});
+  expect(restored.errors).toEqual([]);
+  expect(restored.restored).toEqual([dependency]);
+  expect(await target.getVersion('element',record.id,'1.0.0')).toBeDefined();
  });
 
  it('restores an embedded exact version without changing a newer current-version preference',async()=>{

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type {ProjectDependency} from "../creative-assets";
+import {createProject} from "../model";
+import {validateProject} from "../project-manager";
 import { migrateProjectDocument, PROJECT_SCHEMA_VERSION } from "../project-migration";
 
 describe("migrateProjectDocument", () => {
@@ -48,6 +51,16 @@ describe("migrateProjectDocument", () => {
     expect(migrated.dependencies).toEqual([
       { id: "catalog.glow", type: "effect", version: "1.0.0", sourceCatalogId: "official" },
     ]);
+  });
+
+  it("preserves element dependencies and image asset provenance through project validation", () => {
+    const project=createProject('Element reload');
+    const dependency:ProjectDependency={id:'catalog.element.glow-ring',type:'element',version:'1.0.0',sourceCatalogId:'official'};
+    project.dependencies=[dependency];
+    project.assets=[{id:'element-image',name:'Glow Ring',type:'image',mime:'image/svg+xml',size:321,catalogDependency:dependency} as any];
+    const validated=validateProject(project);
+    expect(validated.dependencies).toEqual([dependency]);
+    expect((validated.assets[0] as any).catalogDependency).toEqual(dependency);
   });
 
   it("drops malformed dependencies while preserving other project fields", () => {
