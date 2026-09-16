@@ -19,6 +19,7 @@ export interface CatalogPanelProps{
  installer:CatalogInstallerLike;
  mobile?:boolean;
  onClose?:()=>void;
+ onAddElement?:(element:{id:string;version:string})=>Promise<void>|void;
 }
 
 const ASSET_TABS:readonly {label:string;type:CatalogAssetType}[]=[
@@ -26,11 +27,12 @@ const ASSET_TABS:readonly {label:string;type:CatalogAssetType}[]=[
  {label:'Effects',type:'effect'},
  {label:'Transitions',type:'transition'},
  {label:'Text Animations',type:'text-animation'},
+ {label:'Elements',type:'element'},
 ];
 const FILTERS:readonly CatalogFilter[]=['Built-in','Online','Installed','Favorites','Updates'];
 const formatBytes=(bytes:number)=>bytes<1024?`${bytes} B`:bytes<1024*1024?`${(bytes/1024).toFixed(bytes<10240?1:0)} KB`:`${(bytes/1024/1024).toFixed(1)} MB`;
 
-export default function CatalogPanel({service,installer,mobile=false,onClose}:CatalogPanelProps){
+export default function CatalogPanel({service,installer,mobile=false,onClose,onAddElement}:CatalogPanelProps){
  useSyncExternalStore(service.subscribe,service.getSnapshot,service.getSnapshot);
  const [type,setType]=useState<CatalogAssetType>('effect');
  const [filter,setFilter]=useState<CatalogFilter>('Online');
@@ -54,14 +56,25 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
   catch(error){setActionError(error instanceof Error?error.message:String(error));}
   finally{setBusy(null);}
  }
+ async function runAction(action:()=>Promise<unknown>|unknown,key:string){
+  setBusy(key);setActionError('');
+  try{await action();}
+  catch(error){setActionError(error instanceof Error?error.message:String(error));}
+  finally{setBusy(null);}
+ }
  async function primaryAction(item:CatalogBrowseItem){
   if(!item.compatible)return;
+  const key=`${item.type}:${item.id}`;
   if(item.availableUpdate){
    const update=service.findExact(item.type,item.id,item.availableUpdate);
-   if(update)await refreshAfter(()=>installer.install(update),`${item.type}:${item.id}`);
+   if(update)await refreshAfter(()=>installer.install(update),key);
    return;
   }
-  if(!item.installed&&item.manifest)await refreshAfter(()=>installer.install(item.manifest!),`${item.type}:${item.id}`);
+  if(item.type==='element'&&item.installed){
+   if(onAddElement)await runAction(()=>onAddElement({id:item.id,version:item.currentVersion??item.version}),key);
+   return;
+  }
+  if(!item.installed&&item.manifest)await refreshAfter(()=>installer.install(item.manifest!),key);
  }
  async function toggleFavorite(item:CatalogBrowseItem){
   setActionError('');
@@ -95,8 +108,9 @@ export default function CatalogPanel({service,installer,mobile=false,onClose}:Ca
     {items.length?items.map(item=>{
      const key=`${item.type}:${item.id}`;
      const updating=Boolean(item.availableUpdate);
-     const label=!item.compatible?'Incompatible':updating?'Update':item.installed?'Installed':'Install';
-     const disabled=!item.compatible||item.installed&&!updating||busy===key;
+     const adding=item.type==='element'&&item.installed&&!updating;
+     const label=!item.compatible?'Incompatible':updating?'Update':adding?'Add to project':item.installed?'Installed':'Install';
+     const disabled=!item.compatible||busy===key||(item.installed&&!updating&&!adding)||(adding&&!onAddElement);
      return <article className="catalog-card" key={`${item.type}:${item.id}@${item.version}`}>
       <CatalogPreview item={item}/>
       <div className="catalog-card-body">
