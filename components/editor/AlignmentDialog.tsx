@@ -8,7 +8,7 @@ import {Progress} from '@/components/ui/progress';
 import {assets} from '@/lib/lyricforge/assets';
 import {audioEngine} from '@/lib/lyricforge/audio';
 import {analyzeAlignmentAudio,buildFocusedRelistenWindows,shiftAudioAlignmentFeatures,type AudioAlignmentFeatures,type AlignmentWindow} from '@/lib/lyricforge/audio-alignment';
-import {alignLyricsToTranscript,alignmentBoundsForSelection,type AlignmentInputLine,type AlignmentReason,type LyricAlignmentResult} from '@/lib/lyricforge/lyric-alignment';
+import {alignLyricsToTranscript,alignmentBoundsForSelection,alignmentTargetClipIds,type AlignmentInputLine,type AlignmentReason,type LyricAlignmentResult} from '@/lib/lyricforge/lyric-alignment';
 import {store,useEditor} from '@/lib/lyricforge/store';
 import {DEFAULT_LOCAL_TRANSCRIPTION_MODEL,HttpTranscription,LocalWhisper,normalizeTranscribedWords,type TranscriptionProvider,type TranscriptionUpdate} from '@/lib/lyricforge/transcription';
 import {Choice,Toggle} from './Controls';
@@ -35,13 +35,7 @@ function concatenateWindows(samples:Float32Array,windows:readonly AlignmentWindo
 
 export default function AlignmentDialog({clipIds,close}:{clipIds:string[];close:()=>void}){
   const {project}=useEditor();
-  const targetIds=useMemo(()=>{
-    const requested=new Set(clipIds);
-    return project.clips
-      .filter(clip=>clip.kind==='lyrics'&&store.editable(clip)&&(requested.size===0||requested.has(clip.id)))
-      .sort((a,b)=>a.start-b.start||a.end-b.end)
-      .map(clip=>clip.id);
-  },[clipIds,project]);
+  const targetIds=useMemo(()=>alignmentTargetClipIds(project,clipIds),[clipIds,project]);
   const targets=targetIds.map(id=>project.clips.find(clip=>clip.id===id)).filter((clip):clip is NonNullable<typeof clip>=>!!clip&&clip.kind==='lyrics');
   const songs=project.assets.filter(asset=>asset.type==='audio');
   const [song,setSong]=useState(songs[0]?.id||'');
@@ -166,7 +160,7 @@ export default function AlignmentDialog({clipIds,close}:{clipIds:string[];close:
       </>}
       <Toggle label="Audio-aware refinement" checked={audioAware} onChange={value=>{setAudioAware(value);setResult(null);}}/>
       <Toggle label="Protect manually timed lyrics" checked={protectManual} onChange={value=>{setProtectManual(value);setResult(null);}}/>
-      <p className="hint">{targets.length} lyric line{targets.length===1?'':'s'} selected. Audio-aware refinement listens for audible phrase and syllable changes when recognition misses words.</p>
+      <p className="hint">{targets.length} lyric line{targets.length===1?'':'s'} selected. Protected manual lines stay fixed and can anchor the lyrics around them; audio-aware refinement listens for audible phrase and syllable changes when recognition misses words.</p>
 
       {(busy||result||error||warning)&&<div className="transcription-progress"><div><span>{progress.status}</span><strong>{Math.round(progress.progress)}%</strong></div><Progress value={progress.progress}/></div>}
       {warning&&<div className="catalog-notice" role="status"><AlertCircle size={17}/><span>{warning}</span></div>}

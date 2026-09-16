@@ -75,6 +75,23 @@ describe('forced lyric alignment',()=>{
     expect(line.reason).toBe('audio-assisted');
   });
 
+  it('uses strong audio timing as meaningful evidence even when sung words are not recognized',async()=>{
+    const {alignLyricsToTranscript}=await alignment();
+    const lines=[
+      {id:'before',text:'fixed before',start:200,end:1000,protected:true,words:recognized([['fixed',200,500],['before',520,900]])},
+      {id:'target',text:'sing me home',start:1100,end:1800,protected:false},
+      {id:'after',text:'fixed after',start:3000,end:3600,protected:true,words:recognized([['fixed',3000,3250],['after',3270,3500]])},
+    ];
+    const result=alignLyricsToTranscript(lines,[],{start:0,end:4000},{audioAware:true,audioFeatures:audioFeatures([1450,1900,2350],4000)});
+    const target=result.lines.find(line=>line.clipId==='target')!;
+    expect(target.words.map(word=>word.text)).toEqual(['sing','me','home']);
+    expect(target.words[0].start).toBeGreaterThanOrEqual(1400);
+    expect(target.words[0].start).toBeLessThanOrEqual(1500);
+    expect(target.reason).toBe('audio-assisted');
+    expect(target.quality).toBe('check');
+    expect(target.confidence).toBeGreaterThanOrEqual(.48);
+  });
+
   it('keeps transcript-only interpolation when audio-aware refinement is disabled',async()=>{
     const {alignLyricsToTranscript}=await alignment();
     const result=alignLyricsToTranscript(
@@ -132,6 +149,19 @@ describe('forced lyric alignment',()=>{
     expect(middle.reason).toBe('protected-anchor');
     expect(result.lines.find(line=>line.clipId==='a')!.end).toBeLessThanOrEqual(2000);
     expect(result.lines.find(line=>line.clipId==='c')!.start).toBeGreaterThanOrEqual(2800);
+  });
+
+  it('expands a selection made only of manual lyrics so those lines can anchor surrounding lyrics',async()=>{
+    const {alignmentTargetClipIds}=await alignment();
+    const project=createProject('manual anchor scope');
+    const track=project.tracks.find(t=>t.kind==='lyrics')!;
+    const a=makeClip('lyrics',track.id,0,1000,'before');
+    const b={...makeClip('lyrics',track.id,1500,2300,'manual anchor'),timingSource:'manual' as const};
+    const c=makeClip('lyrics',track.id,2800,3800,'after');
+    project.clips=[a,b,c];
+    expect(alignmentTargetClipIds(project,[b.id])).toEqual([a.id,b.id,c.id]);
+    expect(alignmentTargetClipIds(project,[a.id])).toEqual([a.id]);
+    expect(alignmentTargetClipIds(project,[b.id],[c.id])).toEqual([c.id]);
   });
 
   it('bounds selected lyric alignment between neighboring unselected lines',async()=>{

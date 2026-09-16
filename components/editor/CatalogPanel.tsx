@@ -112,7 +112,7 @@ export default function CatalogPanel({service,installer,mobile=false,onClose,onA
      const label=!item.compatible?'Incompatible':updating?'Update':adding?'Add to project':item.installed?'Installed':'Install';
      const disabled=!item.compatible||busy===key||(item.installed&&!updating&&!adding)||(adding&&!onAddElement);
      return <article className="catalog-card" key={`${item.type}:${item.id}@${item.version}`}>
-      <CatalogPreview item={item}/>
+      <button type="button" aria-label={`Open details for ${item.name}`} onClick={()=>setSelected(item)} style={{display:'block',width:'100%',padding:0,border:0,background:'transparent',color:'inherit',textAlign:'inherit'}}><CatalogPreview item={item}/></button>
       <div className="catalog-card-body">
        <div className="catalog-card-title"><div><strong>{item.name}</strong><span>{item.author}</span></div><button type="button" className={`catalog-favorite${item.favorite?' active':''}`} aria-label={item.favorite?`Remove ${item.name} from favorites`:`Favorite ${item.name}`} onClick={()=>void toggleFavorite(item)}><Heart size={17} fill={item.favorite?'currentColor':'none'}/></button></div>
        <p>{item.description}</p>
@@ -127,7 +127,7 @@ export default function CatalogPanel({service,installer,mobile=false,onClose,onA
    </div>
 
    {selected?<aside className="catalog-detail" aria-label={`${selected.name} details`}>
-    <button type="button" className="catalog-detail-close" aria-label="Close asset details" onClick={()=>setSelected(null)}><X size={18}/></button>
+    <button type="button" className="catalog-detail-close" aria-label="Close catalog details" onClick={()=>setSelected(null)}><X size={18}/></button>
     <CatalogPreview item={selected}/>
     <h3>{selected.name}</h3>
     <p>{selected.description}</p>
