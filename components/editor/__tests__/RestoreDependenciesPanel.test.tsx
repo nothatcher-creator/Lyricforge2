@@ -11,6 +11,11 @@ const missing:ProjectDependencyResolution[]=[
  {dependency:{id:'catalog.transition.soft-glitch',type:'transition',version:'1.0.0',sourceCatalogId:'official'},status:'missing'},
 ];
 
+const missingElement:ProjectDependencyResolution={
+ dependency:{id:'catalog.element.glow-ring',type:'element',version:'1.0.0',sourceCatalogId:'official'},
+ status:'missing',
+};
+
 afterEach(()=>cleanup());
 
 describe('RestoreDependenciesPanel',()=>{
@@ -29,6 +34,17 @@ describe('RestoreDependenciesPanel',()=>{
   await user.click(screen.getByRole('button',{name:'Restore catalog.effect.neon-pulse 1.0.0'}));
   expect(restore).toHaveBeenCalledTimes(1);
   expect(restore).toHaveBeenCalledWith(missing[0].dependency);
+ });
+
+ it('surfaces and restores a missing exact Element version through the existing restore action',async()=>{
+  const user=userEvent.setup();
+  const restore=vi.fn(async()=>{});
+  render(<RestoreDependenciesPanel missing={[missingElement]} onRestore={restore}/>);
+  expect(screen.getByText('catalog.element.glow-ring')).toBeTruthy();
+  expect(screen.getByText('element')).toBeTruthy();
+  expect(screen.getByText('1.0.0')).toBeTruthy();
+  await user.click(screen.getByRole('button',{name:'Restore catalog.element.glow-ring 1.0.0'}));
+  expect(restore).toHaveBeenCalledWith(missingElement.dependency);
  });
 
  it('Restore All is explicit and includes only missing exact dependencies',async()=>{
