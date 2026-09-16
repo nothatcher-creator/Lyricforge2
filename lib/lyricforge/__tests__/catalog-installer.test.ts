@@ -21,6 +21,23 @@ async function packageFor(version:string){
  return {bytes,manifest};
 }
 
+async function elementPackage(){
+ const svg=strToU8('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>');
+ const descriptor={file:'glow-ring.svg',mime:'image/svg+xml' as const,width:100,height:100,defaultDurationMs:5000,defaultFit:'contain' as const};
+ const embedded:EmbeddedAssetManifest={
+  schemaVersion:1,id:'catalog.element.glow-ring',version:'1.0.0',type:'element',element:descriptor,
+  files:[{path:descriptor.file,mime:descriptor.mime,size:svg.byteLength,sha256:await sha256Hex(svg)}],
+ };
+ const bytes=zipSync({'manifest.json':strToU8(JSON.stringify(embedded)),[descriptor.file]:svg},{level:0});
+ const manifest:CatalogAssetManifest={
+  schemaVersion:1,id:embedded.id,version:embedded.version,type:'element',name:'Glow Ring',description:'SVG glow ring',author:'LyricForge',
+  sourceUrl:'https://github.com/nothatcher-creator/Lyricforge2',license:'CC0-1.0',tags:['overlay','glow'],minAppVersion:'0.1.0',
+  preview:{kind:'image',url:'preview.svg'},element:descriptor,
+  package:{url:'https://example.test/glow-ring.lyricforge-asset',size:bytes.byteLength,sha256:await sha256Hex(bytes)},
+ };
+ return {bytes,manifest,svg,descriptor};
+}
+
 async function seedVersion(storage:ReturnType<typeof createMemoryCatalogStorage>,version:string){
  const {bytes,manifest}=await packageFor(version);
  const record:InstalledAssetVersion={id:manifest.id,type:manifest.type,version,catalogId:'official',installedAt:1,manifest,packageCacheKey:`package:${manifest.type}:${manifest.id}@${version}`};
@@ -50,6 +67,30 @@ describe('CatalogInstaller',()=>{
   expect(await storage.getVersion('effect',manifest.id,'1.0.0')).toBeDefined();
   expect(await storage.getCachedBytes(installed.packageCacheKey)).toBeDefined();
   expect(await storage.getCurrentVersion('effect',manifest.id)).toBe('1.0.0');
+ });
+
+ it('installs a non-executable SVG element and returns its exact verified cached payload',async()=>{
+  const storage=createMemoryCatalogStorage();
+  const {bytes,manifest,svg,descriptor}=await elementPackage();
+  const trust=vi.fn(()=>false);
+  const installer=new CatalogInstaller({storage,appVersion:'0.1.0',isTrustedRuntime:trust,fetchBytes:async()=>bytes});
+  const installed=await installer.install(manifest);
+  expect(installed.type).toBe('element');
+  expect(trust).not.toHaveBeenCalled();
+  const payload=await installer.getInstalledElementFile(manifest.id,manifest.version);
+  expect(Array.from(payload.bytes)).toEqual(Array.from(svg));
+  expect(payload.mime).toBe('image/svg+xml');
+  expect(payload.fileName).toBe('glow-ring.svg');
+  expect(payload.descriptor).toEqual(descriptor);
+ });
+
+ it('revalidates cached element packages before exposing payload bytes',async()=>{
+  const storage=createMemoryCatalogStorage();
+  const {bytes,manifest}=await elementPackage();
+  const installer=new CatalogInstaller({storage,appVersion:'0.1.0',isTrustedRuntime:()=>false,fetchBytes:async()=>bytes});
+  const installed=await installer.install(manifest);
+  await storage.putCachedBytes(installed.packageCacheKey,new Uint8Array([1,2,3]),'application/vnd.lyricforge.asset+zip');
+  await expect(installer.getInstalledElementFile(manifest.id,manifest.version)).rejects.toThrow(/size|sha-256|zip|integrity/i);
  });
 
  it('rejects an unknown runtime before downloading package bytes',async()=>{

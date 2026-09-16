@@ -33,12 +33,41 @@ async function packageFixture(extra:Record<string,Uint8Array>={},embeddedOverrid
  return {bytes,remote,embedded};
 }
 
+async function elementPackageFixture(remoteFile='glow-ring.svg',embeddedFile='glow-ring.svg'){
+ const svg=strToU8('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>');
+ const descriptor={file:embeddedFile,mime:'image/svg+xml' as const,width:100,height:100,defaultDurationMs:5000,defaultFit:'contain' as const};
+ const embedded:EmbeddedAssetManifest={
+  schemaVersion:1,id:'catalog.element.glow-ring',version:'1.0.0',type:'element',element:descriptor,
+  files:[{path:embeddedFile,mime:'image/svg+xml',size:svg.byteLength,sha256:await sha256Hex(svg)}],
+ };
+ const bytes=zipSync({'manifest.json':strToU8(JSON.stringify(embedded)),[embeddedFile]:svg},{level:0});
+ const remote:CatalogAssetManifest={
+  schemaVersion:1,id:embedded.id,version:embedded.version,type:'element',name:'Glow Ring',description:'SVG glow ring',author:'LyricForge',
+  sourceUrl:'https://github.com/nothatcher-creator/Lyricforge2',license:'CC0-1.0',tags:['overlay','glow'],minAppVersion:'0.1.0',
+  preview:{kind:'image',url:'preview.svg'},element:{...descriptor,file:remoteFile},
+  package:{url:'asset.lyricforge-asset',size:bytes.byteLength,sha256:await sha256Hex(bytes)},
+ };
+ return {bytes,remote,embedded,svg};
+}
+
 describe('catalog package validation',()=>{
  it('accepts a declared package whose whole-package and file hashes match',async()=>{
   const {bytes,remote}=await packageFixture();
   const validated=await validateCatalogPackage(bytes,remote);
   expect(validated.manifest.id).toBe(remote.id);
   expect([...validated.files.keys()].sort()).toEqual(['preset.json','preview.svg']);
+ });
+
+ it('accepts a verified element package and exposes its declared SVG bytes',async()=>{
+  const {bytes,remote,svg}=await elementPackageFixture();
+  const validated=await validateCatalogPackage(bytes,remote);
+  expect(validated.manifest.element).toEqual(remote.element);
+  expect(Array.from(validated.files.get('glow-ring.svg')??[])).toEqual(Array.from(svg));
+ });
+
+ it('rejects element packages whose embedded descriptor differs from the remote manifest',async()=>{
+  const {bytes,remote}=await elementPackageFixture('catalog-ring.svg','embedded-ring.svg');
+  await expect(validateCatalogPackage(bytes,remote)).rejects.toThrow(/element|identity|metadata/i);
  });
 
  it('rejects a package whose external sha256 does not match',async()=>{

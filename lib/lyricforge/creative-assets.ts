@@ -1,4 +1,4 @@
-export const CREATIVE_ASSET_TYPES = ["font", "effect", "transition", "text-animation"] as const;
+export const CREATIVE_ASSET_TYPES = ["font", "effect", "transition", "text-animation", "element"] as const;
 export type CreativeAssetType = (typeof CREATIVE_ASSET_TYPES)[number];
 export type AnimationRole = "intro" | "loop" | "outro";
 export type AssetParamValue = string | number | boolean;

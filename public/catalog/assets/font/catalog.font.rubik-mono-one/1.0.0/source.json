@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.font.rubik-mono-one",
+  "version": "1.0.0",
+  "type": "font",
+  "name": "Rubik Mono One",
+  "description": "Chunky monoline display face for bold captions, punchy hooks, and modern graphic lyric cards.",
+  "author": "Hubert and Fischer",
+  "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/rubikmonoone",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/rubikmonoone", "creator": "Hubert and Fischer"},
+  "license": "OFL-1.1",
+  "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
+  "tags": ["bold", "mono", "display"],
+  "minAppVersion": "0.1.0",
+  "font": {"family": "Rubik Mono One", "style": "normal", "weight": 400},
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release.",
+  "files": [
+    {"path": "RubikMonoOne-Regular.ttf", "mime": "font/ttf", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/rubikmonoone/RubikMonoOne-Regular.ttf", "gitBlobSha1": "1923947b912685017b6f8ddcca5766f322d89c29"},
+    {"path": "OFL.txt", "mime": "text/plain", "url": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/rubikmonoone/OFL.txt", "gitBlobSha1": "7e7e709034ebad08173011538f60ccbd9ce3ce07"}
+  ]
+}

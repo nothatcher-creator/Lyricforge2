@@ -1,8 +1,13 @@
-import {describe,expect,it} from 'vitest';
+import {describe,expect,it,vi} from 'vitest';
+import {assets} from '../assets';
+import type {ProjectDependency} from '../creative-assets';
 import {creativeRegistry} from '../creative-registry';
 import {EFFECT_HANDLERS,hashNoise,renderEffect} from '../render-effects';
 import {TRANSITION_HANDLERS,renderTransition} from '../render-transitions';
 import type {ResolvedEffect} from '../effect-runtime';
+import {createProject} from '../model';
+import {Renderer} from '../renderer';
+import {EditorStore} from '../store';
 
 const TEMPORAL_RUNTIMES=new Set(['effect.posterize-time','effect.echo']);
 
@@ -94,5 +99,43 @@ describe('trusted creative render operations',()=>{
     renderTransition(first.ctx,outgoing,incoming,glitch,{width:160,height:90,frameIndex:30,timeMs:1000});
     renderTransition(second.ctx,outgoing,incoming,glitch,{width:160,height:90,frameIndex:60,timeMs:1000});
     expect(second.trace).toEqual(first.trace);
+  });
+
+  it.each([
+    ['SVG','image/svg+xml',new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/></svg>')],
+    ['PNG','image/png',new Uint8Array([137,80,78,71,13,10,26,10])],
+  ] as const)('renders an inserted %s Element through the same image path in preview and export',async(_label,mime,bytes)=>{
+    const store=new EditorStore();
+    store.setProject(createProject('Element render compatibility'));
+    const dependency:ProjectDependency={id:`catalog.element.render-${mime==='image/png'?'png':'svg'}`,type:'element',version:'1.0.0',sourceCatalogId:'official'};
+    const loadedIds:string[]=[];
+    const load=vi.spyOn(assets,'load').mockImplementation(async(asset,blob)=>{
+      assets.blobs.set(asset.id,blob);
+      const image=document.createElement('img');
+      Object.defineProperty(image,'naturalWidth',{value:320});
+      Object.defineProperty(image,'naturalHeight',{value:180});
+      assets.visuals.set(asset.id,image);
+      loadedIds.push(asset.id);
+    });
+    const renderer=new Renderer();
+    try{
+      const clip=await store.addCatalogElement({dependency,name:'Render Element',bytes,mime,time:1000,durationMs:4000,fit:'contain'});
+      expect(clip.kind).toBe('image');
+      const image=assets.visuals.get(clip.assetId!)!;
+      const preview=fakeContext();
+      const previewCanvas={width:1920,height:1080,getContext:()=>preview.ctx} as unknown as HTMLCanvasElement;
+      renderer.draw(previewCanvas,store.project,1500,{quality:'preview-high'});
+      expect(preview.calls).toContain(image);
+
+      const exported=fakeContext();
+      const exportCanvas={width:1920,height:1080,getContext:()=>exported.ctx} as unknown as HTMLCanvasElement;
+      renderer.draw(exportCanvas,store.project,1500,{export:true});
+      expect(exported.calls).toContain(image);
+      expect(renderer.recordFrame(store.project,1500,{export:true}).operations).not.toContain('editor:overlay');
+    }finally{
+      renderer.dispose();
+      load.mockRestore();
+      for(const id of loadedIds){assets.blobs.delete(id);assets.visuals.delete(id);}
+    }
   });
 });

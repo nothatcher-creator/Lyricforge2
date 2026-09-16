@@ -7,6 +7,7 @@
   "description": "Friendly brush script for romantic, relaxed, and handwritten lyric styles.",
   "author": "Vernon Adams",
   "sourceUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pacifico",
+  "source": {"provider": "Google Fonts", "itemUrl": "https://github.com/google/fonts/tree/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/pacifico", "creator": "Vernon Adams"},
   "license": "OFL-1.1",
   "licenseUrl": "https://openfontlicense.org/open-font-license-official-text/",
   "tags": ["script", "brush", "romantic"],

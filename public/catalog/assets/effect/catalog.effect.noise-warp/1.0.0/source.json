@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.effect.noise-warp",
+  "version": "1.0.0",
+  "type": "effect",
+  "name": "Noise Warp",
+  "description": "Organic displacement for unstable, psychedelic, and distorted lyric moments.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["distort", "noise", "warp"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "effect.noise-displacement",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

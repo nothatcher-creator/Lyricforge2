@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.animation.sway-3d",
+  "version": "1.0.0",
+  "type": "text-animation",
+  "name": "Sway 3D",
+  "description": "Subtle perspective sway that gives lyric text dimensional motion.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["3d", "sway", "motion"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "animation.sway-3d",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

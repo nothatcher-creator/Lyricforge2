@@ -1,0 +1,3 @@
+{
+  "schemaVersion":1,"id":"catalog.element.cinematic-frame","version":"1.0.0","type":"element","name":"Cinematic Frame","description":"Thin cinematic border for framing titles and choruses.","author":"LyricForge","sourceUrl":"https://github.com/nothatcher-creator/Lyricforge2","license":"CC0-1.0","tags":["frame","cinematic","border"],"minAppVersion":"0.1.0","element":{"file":"element.svg","mime":"image/svg+xml","width":1920,"height":1080,"defaultDurationMs":5000,"defaultFit":"contain"},"preview":{"kind":"image","file":"element.svg"},"publishedAt":"2026-09-16T07:50:00.000Z","changelog":"Initial official Element release.","files":[{"path":"element.svg","mime":"image/svg+xml","file":"element.svg"}]
+}

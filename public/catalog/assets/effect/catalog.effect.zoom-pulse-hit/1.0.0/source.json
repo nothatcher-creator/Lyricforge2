@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "catalog.effect.zoom-pulse-hit",
+  "version": "1.0.0",
+  "type": "effect",
+  "name": "Zoom Pulse Hit",
+  "description": "Rhythmic scale pulse for beat hits, hook entrances, and punchy emphasis.",
+  "author": "LyricForge",
+  "sourceUrl": "https://github.com/nothatcher-creator/Lyricforge2",
+  "license": "CC0-1.0",
+  "tags": ["zoom", "pulse", "beat"],
+  "minAppVersion": "0.1.0",
+  "runtimeId": "effect.zoom-pulse",
+  "preview": {"kind": "image", "file": "preview.svg"},
+  "publishedAt": "2026-09-15T00:00:00.000Z",
+  "changelog": "Initial official catalog release."
+}

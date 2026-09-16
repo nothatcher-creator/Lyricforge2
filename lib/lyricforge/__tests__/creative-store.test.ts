@@ -1,5 +1,6 @@
-import {describe,expect,it} from 'vitest';
-import type {AnimationInstance} from '../creative-assets';
+import {describe,expect,it,vi} from 'vitest';
+import type {AnimationInstance,ProjectDependency} from '../creative-assets';
+import {assets} from '../assets';
 import {createProject,makeClip,makeTrack} from '../model';
 import {EditorStore} from '../store';
 
@@ -116,5 +117,32 @@ describe('EditorStore creative operations',()=>{
     store.setProject(transitionProject(2));
     expect(store.addTransition('a','b')).toBeUndefined();
     expect(store.project.transitions).toEqual([]);
+  });
+
+  it('inserts a catalog element through the image asset path and reuses the same exact asset',async()=>{
+    const store=freshStore();
+    const dependency:ProjectDependency={id:'catalog.element.glow-ring',type:'element',version:'1.0.0',sourceCatalogId:'official'};
+    const bytes=new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><circle r="40"/></svg>');
+    const loaded:string[]=[];
+    const load=vi.spyOn(assets,'load').mockImplementation(async(asset,blob)=>{assets.blobs.set(asset.id,blob);loaded.push(asset.id);});
+    try{
+      const first=await store.addCatalogElement({dependency,name:'Glow Ring',bytes,mime:'image/svg+xml',time:1500,durationMs:5000,fit:'contain'});
+      expect(first).toMatchObject({kind:'image',start:1500,end:6500,fit:'contain'});
+      expect(store.selected).toEqual([first.id]);
+      const asset=store.project.assets.find(item=>item.id===first.assetId)!;
+      expect(asset).toMatchObject({name:'Glow Ring',type:'image',mime:'image/svg+xml',catalogDependency:dependency});
+      expect(store.project.dependencies).toContainEqual(dependency);
+      expect(store.project.tracks.find(track=>track.id===first.trackId)?.kind).toBe('image');
+      expect(Array.from(new Uint8Array(await assets.blobs.get(asset.id)!.arrayBuffer()))).toEqual(Array.from(bytes));
+
+      const second=await store.addCatalogElement({dependency,name:'Glow Ring',bytes,mime:'image/svg+xml',time:7000,durationMs:3000,fit:'cover'});
+      expect(second.assetId).toBe(asset.id);
+      expect(second).toMatchObject({kind:'image',start:7000,end:10000,fit:'cover'});
+      expect(store.project.assets.filter(item=>item.id===asset.id)).toHaveLength(1);
+      expect(loaded).toEqual([asset.id]);
+    }finally{
+      load.mockRestore();
+      for(const id of loaded)assets.blobs.delete(id);
+    }
   });
 });

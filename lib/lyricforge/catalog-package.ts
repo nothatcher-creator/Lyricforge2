@@ -48,11 +48,17 @@ async function unzipBounded(bytes:Uint8Array):Promise<Record<string,Uint8Array>>
  });
 }
 
+function sameElementDescriptor(remote:CatalogAssetManifest['element'],embedded:EmbeddedAssetManifest['element']){
+ if(!remote||!embedded)return remote===embedded;
+ return remote.file===embedded.file&&remote.mime===embedded.mime&&remote.width===embedded.width&&remote.height===embedded.height&&remote.defaultDurationMs===embedded.defaultDurationMs&&remote.defaultFit===embedded.defaultFit;
+}
+
 function assertIdentity(remote:CatalogAssetManifest,embedded:EmbeddedAssetManifest){
  if(remote.id!==embedded.id||remote.version!==embedded.version||remote.type!==embedded.type){
   throw new Error(`Catalog package identity mismatch: expected ${remote.type}:${remote.id}@${remote.version}, received ${embedded.type}:${embedded.id}@${embedded.version}`);
  }
  if(remote.runtimeId!==embedded.runtimeId)throw new Error('Catalog package runtime identity does not match the remote manifest');
+ if(remote.type==='element'&&!sameElementDescriptor(remote.element,embedded.element))throw new Error('Catalog package element metadata does not match the remote manifest');
 }
 
 export async function validateCatalogPackage(input:Uint8Array|ArrayBuffer,remote:CatalogAssetManifest):Promise<ValidatedCatalogPackage>{

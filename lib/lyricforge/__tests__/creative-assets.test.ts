@@ -3,7 +3,7 @@ import { isCreativeAssetType, normalizeAssetRef } from "../creative-assets";
 
 describe("creative asset references", () => {
   it("accepts only supported creative asset types", () => {
-    for (const type of ["font", "effect", "transition", "text-animation"]) expect(isCreativeAssetType(type)).toBe(true);
+    for (const type of ["font", "effect", "transition", "text-animation", "element"]) expect(isCreativeAssetType(type)).toBe(true);
     expect(isCreativeAssetType("script")).toBe(false);
   });
 

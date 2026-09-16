@@ -12,7 +12,9 @@ export const ALLOWED_CATALOG_MIME=new Set(['application/json','font/ttf','font/w
 export const REDISTRIBUTABLE_FONT_LICENSES=new Set(['OFL-1.1','Apache-2.0']);
 const FIXED_ZIP_TIME=new Date('1980-01-01T00:00:00.000Z');
 const SEMVER=/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const ASSET_TYPES=new Set(['font','effect','transition','text-animation']);
+const ASSET_TYPES=new Set(['font','effect','transition','text-animation','element']);
+const LYRICFORGE_SOURCE_PREFIX='https://github.com/nothatcher-creator/Lyricforge2';
+const EXECUTABLE_ELEMENT_PATH=/\.(?:[cm]?js|html?|xhtml)$/i;
 
 function sortValue(value){
  if(Array.isArray(value))return value.map(sortValue);
@@ -36,6 +38,29 @@ function safeRelativeFile(value,label='catalog path'){
  if(parts.some(part=>!part||part==='.'||part==='..'))throw new Error(`Path traversal is not allowed in ${label}: ${value}`);
  return value;
 }
+function isHttps(value){
+ try{return typeof value==='string'&&new URL(value).protocol==='https:';}catch{return false;}
+}
+function assertElementDescriptor(element){
+ if(!element||typeof element!=='object')throw new Error('Element metadata is required');
+ const file=safeRelativeFile(element.file,'element payload path');
+ if(EXECUTABLE_ELEMENT_PATH.test(file))throw new Error(`Element packages cannot use executable-looking paths: ${file}`);
+ if(!['image/svg+xml','image/png'].includes(element.mime))throw new Error(`Unsupported element MIME type: ${String(element.mime)}`);
+ const expected=element.mime==='image/svg+xml'?'.svg':'.png';
+ if(!file.toLowerCase().endsWith(expected))throw new Error(`Element ${element.mime} payload must use ${expected}`);
+ for(const key of ['width','height','defaultDurationMs'])if(element[key]!==undefined&&(!Number.isInteger(element[key])||element[key]<=0))throw new Error(`Element ${key} must be a positive integer`);
+ if(element.defaultFit!==undefined&&!['contain','cover'].includes(element.defaultFit))throw new Error('Element defaultFit must be contain or cover');
+ return element;
+}
+function isExternalSource(source){return source.author!=='LyricForge'||!source.sourceUrl.startsWith(LYRICFORGE_SOURCE_PREFIX);}
+function assertSourceDescriptor(source){
+ if(!source||typeof source!=='object')throw new Error('External catalog items require source metadata');
+ if(typeof source.provider!=='string'||!source.provider.trim())throw new Error('Catalog source provider is required');
+ if(!isHttps(source.itemUrl))throw new Error('Catalog source itemUrl must use HTTPS');
+ if(source.creator!==undefined&&(typeof source.creator!=='string'||!source.creator.trim()))throw new Error('Catalog source creator must not be blank');
+ if(source.attribution!==undefined&&(typeof source.attribution!=='string'||!source.attribution.trim()))throw new Error('Catalog source attribution must not be blank');
+ if(source.discoveredVia!==undefined&&(typeof source.discoveredVia!=='string'||!source.discoveredVia.trim()))throw new Error('Catalog source discoveredVia must not be blank');
+}
 function assertIdentity(source){
  if(!source||typeof source!=='object')throw new Error('Catalog source must be an object');
  if(source.schemaVersion!==1)throw new Error('Catalog source schemaVersion must be 1');
@@ -52,12 +77,24 @@ function assertIdentity(source){
  if(source.maxAppVersion!==undefined&&(!SEMVER.test(source.maxAppVersion)||compareSemVer(source.maxAppVersion,source.minAppVersion)<0))throw new Error('Catalog maxAppVersion is invalid');
  if(!source.preview||!['image','video'].includes(source.preview.kind))throw new Error('Catalog preview metadata is required');
  if(source.preview.file!==undefined)safeRelativeFile(source.preview.file,'preview path');
+ if(source.type==='element')assertElementDescriptor(source.element);
+ else if(source.element!==undefined)throw new Error('Only element assets may declare element metadata');
+ if(source.source!==undefined)assertSourceDescriptor(source.source);
+ if(isExternalSource(source)&&!source.source)throw new Error('External catalog items require source metadata');
+ if(/^CC-BY(?:-SA)?-/i.test(source.license)){
+  assertSourceDescriptor(source.source);
+  if(typeof source.source.creator!=='string'||!source.source.creator.trim())throw new Error('Attribution-bearing catalog items require a source creator');
+  if(typeof source.source.attribution!=='string'||!source.source.attribution.trim())throw new Error('Attribution-bearing catalog items require source attribution');
+ }
 }
 function assertTrustedRuntimeAndLicense(source){
  if(source.type==='font'){
   if(source.runtimeId)throw new Error('Fonts cannot declare a trusted runtime');
   if(!source.font||typeof source.font.family!=='string'||!source.font.family.trim())throw new Error('Font metadata is required');
   if(!REDISTRIBUTABLE_FONT_LICENSES.has(source.license)||typeof source.licenseUrl!=='string'||!source.licenseUrl.startsWith('https://'))throw new Error('Official catalog fonts require redistributable license metadata');
+ }else if(source.type==='element'){
+  if(source.runtimeId)throw new Error('Elements cannot declare a trusted runtime');
+  assertElementDescriptor(source.element);
  }else if(typeof source.runtimeId!=='string'||!TRUSTED_CATALOG_RUNTIMES.has(source.runtimeId)){
   throw new Error(`Catalog asset requires a trusted runtime: ${String(source.runtimeId)}`);
  }
@@ -77,6 +114,7 @@ export function buildAssetPackage(source,payloads={}){
  const normalizedPayloads={};
  for(const name of names){
   safeRelativeFile(name,'package payload path');
+  if(source.type==='element'&&EXECUTABLE_ELEMENT_PATH.test(name))throw new Error(`Element packages cannot contain executable-looking file paths: ${name}`);
   if(name==='manifest.json')throw new Error('Package payload cannot replace manifest.json');
   const payload=payloads[name];
   if(!payload)throw new Error(`Package payload ${name} is missing bytes`);
@@ -85,7 +123,13 @@ export function buildAssetPackage(source,payloads={}){
   normalizedPayloads[name]=bytes;
   files.push({path:name,mime:payload.mime,size:bytes.byteLength,sha256:sha256Hex(bytes)});
  }
- const embedded={schemaVersion:1,id:source.id,version:source.version,type:source.type,...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),...(source.font?{font:source.font}:{}),files};
+ if(source.type==='element'){
+  const element=assertElementDescriptor(source.element);
+  const payload=payloads[element.file];
+  if(!payload)throw new Error(`Element package is missing declared payload: ${element.file}`);
+  if(payload.mime!==element.mime)throw new Error(`Element payload MIME mismatch for ${element.file}`);
+ }
+ const embedded={schemaVersion:1,id:source.id,version:source.version,type:source.type,...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),...(source.font?{font:source.font}:{}),...(source.element?{element:{...source.element}}:{}),files};
  archiveEntries['manifest.json']=strToU8(stableJson(embedded));
  for(const name of names)archiveEntries[name]=normalizedPayloads[name];
  const bytes=zipSync(archiveEntries,{level:0,mtime:FIXED_ZIP_TIME});
@@ -98,7 +142,7 @@ export function remoteManifestFromSource(source,built,relativeDir){
  const packageUrl=`${relativeDir}/asset.lyricforge-asset`;
  const previewUrl=`${relativeDir}/${previewFile}`;
  return {
-  schemaVersion:1,id:source.id,version:source.version,type:source.type,name:source.name,description:source.description,author:source.author,sourceUrl:source.sourceUrl,license:source.license,...(source.licenseUrl?{licenseUrl:source.licenseUrl}:{}),tags:[...source.tags],minAppVersion:source.minAppVersion,...(source.maxAppVersion?{maxAppVersion:source.maxAppVersion}:{}),...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),preview:{kind:source.preview.kind,url:previewUrl},package:{url:packageUrl,size:built.bytes.byteLength,sha256:built.sha256},...(source.font?{font:source.font}:{}),...(source.changelog?{changelog:source.changelog}:{}),
+  schemaVersion:1,id:source.id,version:source.version,type:source.type,name:source.name,description:source.description,author:source.author,sourceUrl:source.sourceUrl,...(source.source?{source:{...source.source}}:{}),license:source.license,...(source.licenseUrl?{licenseUrl:source.licenseUrl}:{}),tags:[...source.tags],minAppVersion:source.minAppVersion,...(source.maxAppVersion?{maxAppVersion:source.maxAppVersion}:{}),...(source.runtimeId?{runtimeId:source.runtimeId}:{}),...(source.preset?{preset:source.preset}:{}),preview:{kind:source.preview.kind,url:previewUrl},package:{url:packageUrl,size:built.bytes.byteLength,sha256:built.sha256},...(source.font?{font:source.font}:{}),...(source.element?{element:{...source.element}}:{}),...(source.changelog?{changelog:source.changelog}:{}),
  };
 }
 
@@ -132,10 +176,16 @@ export function validateCatalogDirectory(root='public/catalog'){
   if(embedded.schemaVersion!==1||embedded.id!==item.id||embedded.version!==item.version||embedded.type!==item.type)throw new Error(`Catalog embedded manifest identity mismatch: ${key}`);
   if(item.type==='font'){
    if(embedded.runtimeId)throw new Error(`Font package declares executable runtime: ${key}`);
+  }else if(item.type==='element'){
+   if(embedded.runtimeId)throw new Error(`Element package declares executable runtime: ${key}`);
+   assertElementDescriptor(item.element);
+   assertElementDescriptor(embedded.element);
+   if(stableJson(embedded.element)!==stableJson(item.element))throw new Error(`Element package metadata differs from catalog manifest: ${key}`);
   }else if(embedded.runtimeId!==item.runtimeId||!TRUSTED_CATALOG_RUNTIMES.has(embedded.runtimeId))throw new Error(`Catalog package has an untrusted runtime: ${key}`);
   const declared=new Map((embedded.files??[]).map(file=>[file.path,file]));
   for(const [filePath,file] of declared){
    safeRelativeFile(filePath,'declared payload path');
+   if(item.type==='element'&&EXECUTABLE_ELEMENT_PATH.test(filePath))throw new Error(`Element package contains executable-looking file path: ${filePath}`);
    if(!ALLOWED_CATALOG_MIME.has(file.mime))throw new Error(`Unsupported payload MIME type: ${file.mime}`);
    const data=archive[filePath];
    if(!data)throw new Error(`Catalog package is missing declared payload: ${filePath}`);
@@ -143,6 +193,10 @@ export function validateCatalogDirectory(root='public/catalog'){
   }
   for(const archivePath of Object.keys(archive))if(archivePath!=='manifest.json'&&!declared.has(archivePath))throw new Error(`Catalog package contains undeclared payload: ${archivePath}`);
   if(item.type==='font'&&item.license==='OFL-1.1'&&!archive['OFL.txt'])throw new Error(`OFL font package is missing OFL.txt: ${key}`);
+  if(item.type==='element'){
+   const elementFile=declared.get(item.element.file);
+   if(!elementFile||elementFile.mime!==item.element.mime)throw new Error(`Element package payload does not match catalog metadata: ${key}`);
+  }
   const manifestPath=path.join(path.dirname(packagePath),'manifest.json');
   if(!fs.existsSync(manifestPath))throw new Error(`External catalog manifest is missing: ${key}`);
   const external=parseJsonFile(manifestPath);

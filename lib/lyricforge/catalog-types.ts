@@ -26,6 +26,23 @@ export interface CatalogFontDescriptor{
  weight:number;
 }
 
+export interface CatalogElementDescriptor{
+ file:string;
+ mime:'image/svg+xml'|'image/png';
+ width?:number;
+ height?:number;
+ defaultDurationMs?:number;
+ defaultFit?:'contain'|'cover';
+}
+
+export interface CatalogSourceDescriptor{
+ provider:string;
+ itemUrl:string;
+ creator?:string;
+ attribution?:string;
+ discoveredVia?:string;
+}
+
 export interface CatalogAssetManifest{
  schemaVersion:1;
  id:string;
@@ -35,6 +52,7 @@ export interface CatalogAssetManifest{
  description:string;
  author:string;
  sourceUrl:string;
+ source?:CatalogSourceDescriptor;
  license:string;
  licenseUrl?:string;
  tags:string[];
@@ -45,6 +63,7 @@ export interface CatalogAssetManifest{
  preview:CatalogPreviewRef;
  package:CatalogPackageRef;
  font?:CatalogFontDescriptor;
+ element?:CatalogElementDescriptor;
  changelog?:string;
 }
 
@@ -70,6 +89,7 @@ export interface EmbeddedAssetManifest{
  runtimeId?:string;
  preset?:Record<string,AssetParamValue>;
  font?:CatalogFontDescriptor;
+ element?:CatalogElementDescriptor;
  files:EmbeddedCatalogFile[];
 }
 
