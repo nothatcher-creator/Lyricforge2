@@ -62,7 +62,7 @@ describe('catalog package validation',()=>{
   const {bytes,remote,svg}=await elementPackageFixture();
   const validated=await validateCatalogPackage(bytes,remote);
   expect(validated.manifest.element).toEqual(remote.element);
-  expect(validated.files.get('glow-ring.svg')).toEqual(svg);
+  expect(Array.from(validated.files.get('glow-ring.svg')??[])).toEqual(Array.from(svg));
  });
 
  it('rejects element packages whose embedded descriptor differs from the remote manifest',async()=>{
