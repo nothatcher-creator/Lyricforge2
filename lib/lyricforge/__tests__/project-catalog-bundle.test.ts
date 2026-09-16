@@ -2,6 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {strToU8,zipSync} from 'fflate';
 import type {CatalogAssetManifest,EmbeddedAssetManifest,InstalledAssetVersion} from '../catalog-types';
 import type {ProjectDependency} from '../creative-assets';
+import {resolveProjectDependencies} from '../catalog-dependencies';
 import {sha256Hex} from '../catalog-package';
 import {bundleCatalogDependencies,restoreBundledCatalogDependencies} from '../catalog-bundle';
 import {createMemoryCatalogStorage} from '../catalog-storage';
@@ -84,6 +85,24 @@ describe('catalog dependency bundles',()=>{
   expect(restored.errors).toEqual([]);
   expect(restored.restored).toEqual([dependency]);
   expect(await target.getVersion('element',record.id,'1.0.0')).toBeDefined();
+ });
+
+ it('treats a newer Element as missing when the project requires an exact older version, then resolves after exact restore',async()=>{
+  const source=createMemoryCatalogStorage();
+  await seedElement(source,'1.0.0');
+  const bundle=await bundleCatalogDependencies(elementProject('1.0.0'),source);
+
+  const target=createMemoryCatalogStorage();
+  const newer=await seedElement(target,'1.1.0');
+  const before=resolveProjectDependencies(bundle.project,[newer]);
+  expect(before).toEqual([{dependency:{id:newer.id,type:'element',version:'1.0.0',sourceCatalogId:'official'},status:'missing'}]);
+
+  const restored=await restoreBundledCatalogDependencies(bundle.project,bundle.entries,target,{appVersion:'0.1.0',isTrustedRuntime:()=>false});
+  expect(restored.errors).toEqual([]);
+  const exact=await target.getVersion('element',newer.id,'1.0.0');
+  expect(exact).toBeDefined();
+  const after=resolveProjectDependencies(bundle.project,[newer,exact!]);
+  expect(after[0]).toMatchObject({status:'installed',dependency:{id:newer.id,type:'element',version:'1.0.0'}});
  });
 
  it('restores an embedded exact version without changing a newer current-version preference',async()=>{
