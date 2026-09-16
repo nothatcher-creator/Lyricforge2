@@ -127,7 +127,7 @@ export default function CatalogPanel({service,installer,mobile=false,onClose,onA
    </div>
 
    {selected?<aside className="catalog-detail" aria-label={`${selected.name} details`}>
-    <button type="button" className="catalog-detail-close" aria-label="Close asset details" onClick={()=>setSelected(null)}><X size={18}/></button>
+    <button type="button" className="catalog-detail-close" aria-label="Close catalog details" onClick={()=>setSelected(null)}><X size={18}/></button>
     <CatalogPreview item={selected}/>
     <h3>{selected.name}</h3>
     <p>{selected.description}</p>
