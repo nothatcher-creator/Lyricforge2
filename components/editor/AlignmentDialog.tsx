@@ -34,8 +34,8 @@ function concatenateWindows(samples:Float32Array,windows:readonly AlignmentWindo
 }
 
 export default function AlignmentDialog({clipIds,close}:{clipIds:string[];close:()=>void}){
-  const {project,selected}=useEditor();
-  const targetIds=useMemo(()=>alignmentTargetClipIds(project,selected,clipIds),[clipIds,project,selected]);
+  const {project}=useEditor();
+  const targetIds=useMemo(()=>alignmentTargetClipIds(project,clipIds),[clipIds,project]);
   const targets=targetIds.map(id=>project.clips.find(clip=>clip.id===id)).filter((clip):clip is NonNullable<typeof clip>=>!!clip&&clip.kind==='lyrics');
   const songs=project.assets.filter(asset=>asset.type==='audio');
   const [song,setSong]=useState(songs[0]?.id||'');
