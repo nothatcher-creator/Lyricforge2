@@ -78,7 +78,7 @@ describe('CatalogInstaller',()=>{
   expect(installed.type).toBe('element');
   expect(trust).not.toHaveBeenCalled();
   const payload=await installer.getInstalledElementFile(manifest.id,manifest.version);
-  expect(payload.bytes).toEqual(svg);
+  expect(Array.from(payload.bytes)).toEqual(Array.from(svg));
   expect(payload.mime).toBe('image/svg+xml');
   expect(payload.fileName).toBe('glow-ring.svg');
   expect(payload.descriptor).toEqual(descriptor);
