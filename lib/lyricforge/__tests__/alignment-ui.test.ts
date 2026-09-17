@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 
 const read=(path:string)=>readFileSync(resolve(process.cwd(),path),'utf8');
 const lyrics=read('components/editor/LyricPanel.tsx');
+const timeline=read('components/editor/Timeline.tsx');
 const transitions=read('components/editor/TimelineTransitions.tsx');
 const portraitCss=read('app/mobile-portrait.css');
 let alignmentDialog='';
@@ -20,6 +21,17 @@ describe('Align Existing Lyrics workflow',()=>{
     expect(lyrics).toContain('recentlyPasted');
     expect(lyrics).toContain('Align now');
     expect(lyrics).toContain('new lines added');
+  });
+
+  it('uses a selected manually timed lyric as an anchor for surrounding lyrics',()=>{
+    expect(lyrics).toContain('alignmentTargetClipIds');
+    expect(lyrics).toMatch(/alignmentTargetClipIds\(project,selected,ids\)/);
+  });
+
+  it('marks lyric timeline drags and trims as manual timing anchors',()=>{
+    expect(timeline).toContain("timingSource:'manual'");
+    expect(timeline).toContain('alignmentConfidence:undefined');
+    expect(timeline).toContain('alignmentQuality:undefined');
   });
 
   it('uses the existing recognition providers and protects manual timing by default',()=>{
