@@ -2,7 +2,7 @@ name: Deploy LyricForge to GitHub Pages
 
 on:
   push:
-    branches: [main, feat/source-foundation, feat/creative-catalog, feat/audio-aware-alignment-catalog-elements]
+    branches: [main, feat/source-foundation, feat/creative-catalog, feat/audio-aware-alignment-catalog-elements, fix/alignment-anchors-catalog-taps]
   workflow_dispatch:
 
 permissions:
