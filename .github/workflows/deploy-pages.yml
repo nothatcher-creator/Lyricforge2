@@ -2,7 +2,7 @@ name: Deploy LyricForge to GitHub Pages
 
 on:
   push:
-    branches: [main, feat/source-foundation, feat/creative-catalog, feat/audio-aware-alignment-catalog-elements, fix/alignment-catalog-touch]
+    branches: [main, feat/source-foundation, feat/creative-catalog, feat/audio-aware-alignment-catalog-elements]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}-${{ github.sha }}
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
