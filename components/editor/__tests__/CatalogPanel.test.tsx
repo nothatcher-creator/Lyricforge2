@@ -165,3 +165,15 @@ describe('CatalogPanel',()=>{
   expect(installer.install).not.toHaveBeenCalled();
  });
 });
+
+describe('CatalogPanel touch activation',()=>{
+ it('makes the mobile preview a large touch target that opens asset details',async()=>{
+  const user=userEvent.setup();
+  const {service,installer}=await fixture(false);
+  render(<CatalogPanel service={service} installer={installer} mobile/>);
+  const preview=screen.getByRole('button',{name:'Open details for Neon Pulse'});
+  expect(Number.parseFloat(preview.style.minHeight)).toBeGreaterThanOrEqual(44);
+  await user.click(preview);
+  expect(screen.getByRole('heading',{name:'Neon Pulse'})).toBeTruthy();
+ });
+});
