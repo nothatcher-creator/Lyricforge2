@@ -112,7 +112,7 @@ export default function CatalogPanel({service,installer,mobile=false,onClose,onA
      const label=!item.compatible?'Incompatible':updating?'Update':adding?'Add to project':item.installed?'Installed':'Install';
      const disabled=!item.compatible||busy===key||(item.installed&&!updating&&!adding)||(adding&&!onAddElement);
      return <article className="catalog-card" key={`${item.type}:${item.id}@${item.version}`}>
-      <button type="button" aria-label={`Open details for ${item.name}`} onClick={()=>setSelected(item)} style={{display:'block',width:'100%',padding:0,border:0,background:'transparent',color:'inherit',textAlign:'inherit'}}><CatalogPreview item={item}/></button>
+      <button type="button" aria-label={`Open details for ${item.name}`} onClick={()=>setSelected(item)} style={{display:'block',width:'100%',padding:0,border:0,background:'transparent',color:'inherit',textAlign:'inherit',touchAction:'manipulation',...(mobile?{minHeight:'44px'}:{})}}><CatalogPreview item={item}/></button>
       <div className="catalog-card-body">
        <div className="catalog-card-title"><div><strong>{item.name}</strong><span>{item.author}</span></div><button type="button" className={`catalog-favorite${item.favorite?' active':''}`} aria-label={item.favorite?`Remove ${item.name} from favorites`:`Favorite ${item.name}`} onClick={()=>void toggleFavorite(item)}><Heart size={17} fill={item.favorite?'currentColor':'none'}/></button></div>
        <p>{item.description}</p>
