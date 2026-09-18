@@ -175,4 +175,23 @@ describe('forced lyric alignment',()=>{
     project.duration=6000;project.clips=[a,b,c,d];
     expect(alignmentBoundsForSelection(project,[b.id,c.id])).toEqual({start:1000,end:4000});
   });
+
+  it('prefers a nearby timing boundary over a louder unrelated transient inside a missing-word gap',async()=>{
+    const {alignLyricsToTranscript}=await alignment();
+    const frameMs=20,durationMs=1400,length=Math.ceil(durationMs/frameMs)+1;
+    const rms=new Float32Array(length),activity=new Float32Array(length),onset=new Float32Array(length);
+    const set=(time:number,strength:number)=>{const index=Math.round(time/frameMs);rms[index]=strength;activity[index]=strength;onset[index]=strength;};
+    set(360,1);
+    set(620,.65);
+    const features:AudioAlignmentFeatures={frameMs,rms,activity,onset,boundaries:[360,620]};
+    const result=alignLyricsToTranscript(
+      [{id:'l1',text:'hello brave new',start:0,end:1400,protected:false}],
+      recognized([['hello',100,260],['new',900,1080]]),
+      {start:0,end:1400},
+      {audioAware:true,audioFeatures:features},
+    );
+    expect(Math.abs(result.lines[0].words[1].start-620)).toBeLessThanOrEqual(40);
+    expect(result.lines[0].words[0]).toMatchObject({start:100,end:260});
+    expect(result.lines[0].words[2]).toMatchObject({start:900,end:1080});
+  });
 });
