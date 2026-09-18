@@ -196,30 +196,29 @@ function refineWithAudio(
     const rightTime=rightIndex<tokens.length?words[rightIndex].start:bounds.end;
     if(rightTime<=leftTime)continue;
 
-    const candidates=features.boundaries
-      .filter(time=>time>=leftTime&&time<rightTime)
-      .map(time=>({time,strength:alignmentFeatureStrength(features,time)}))
-      .filter(candidate=>candidate.strength>.05)
-      .sort((a,b)=>b.strength-a.strength||a.time-b.time)
-      .slice(0,count)
-      .sort((a,b)=>a.time-b.time);
-
     const assigned=new Map<number,number>();
-    for(let j=0;j<candidates.length;j++){
-      let relative=Math.round((j+1)*(count+1)/(candidates.length+1)-1);
-      relative=Math.max(0,Math.min(count-1,relative));
-      while(assigned.has(relative)&&relative<count-1)relative++;
-      while(assigned.has(relative)&&relative>0)relative--;
+    const usedTimes=new Set<number>();
+    for(let relative=0;relative<count;relative++){
       const tokenIndex=first+relative;
-      let time=candidates[j].time;
       const token=tokens[tokenIndex];
       const sourceLine=lineById.get(token.lineId);
+      const baseWord=baseWords[tokenIndex];
+      const baseSpan=Math.max(1,baseWord.end-baseWord.start);
+      let target=Math.round((baseWord.start+baseWord.end)/2);
+      let radius=Math.max(ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs,Math.min(600,Math.round(baseSpan*.75)));
       if(token.wordIndex===0&&sourceLine&&anchoredLines.has(token.lineId)){
-        const edge=findSupportedBoundary(features,sourceLine.start,ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs);
-        if(!edge)continue;
-        time=edge.time;
+        target=sourceLine.start;
+        radius=ALIGNMENT_AUDIO_CONFIG.edgeSnapRadiusMs;
       }
-      assigned.set(relative,clamp(Math.round(time),Math.round(leftTime),Math.max(Math.round(leftTime),Math.round(rightTime)-1)));
+      const candidate=features.boundaries
+        .filter(time=>time>=leftTime&&time<rightTime&&!usedTimes.has(time))
+        .map(time=>({time,strength:alignmentFeatureStrength(features,time),distance:Math.abs(time-target)}))
+        .filter(item=>item.strength>.05&&item.distance<=radius)
+        .sort((a,b)=>a.distance-b.distance||b.strength-a.strength||a.time-b.time)[0];
+      if(!candidate)continue;
+      const time=clamp(Math.round(candidate.time),Math.round(leftTime),Math.max(Math.round(leftTime),Math.round(rightTime)-1));
+      assigned.set(relative,time);
+      usedTimes.add(candidate.time);
       supported.add(tokenIndex);
     }
 
