@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createProject,makeClip} from '@/lib/lyricforge/model';
 import {store} from '@/lib/lyricforge/store';
+import {TooltipProvider} from '@/components/ui/tooltip';
 import LyricPanel from '../LyricPanel';
 
 const audioMock=vi.hoisted(()=>({
@@ -31,7 +32,7 @@ describe('LyricPanel alignment scope',()=>{
   store.setProject(project);
   store.select([anchor.id]);
 
-  render(<LyricPanel onAuto={()=>{}} onPaste={()=>{}} onImport={()=>{}}/>);
+  render(<TooltipProvider><LyricPanel onAuto={()=>{}} onPaste={()=>{}} onImport={()=>{}}/></TooltipProvider>);
   await user.click(screen.getByRole('button',{name:/Align Existing Lyrics/i}));
 
   expect(screen.getByTestId('alignment-dialog').textContent).toBe([before.id,anchor.id,after.id].join('|'));
